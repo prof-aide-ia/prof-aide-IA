@@ -1,4 +1,4 @@
-# Maitresse virtuelle
+# Prof Aide IA
 
 Site avec une maitresse virtuelle : micro pour parler, voix pour repondre, tableau pour ecrire, et une methode socratique (elle guide, ne donne jamais la reponse finale).
 

@@ -7,15 +7,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = 'claude-sonnet-5';
-const DEFAULT_ACCOUNT_CODE = 'defaut';
 const ACCOUNTS_DIR = path.join(__dirname, 'accounts');
 
 if (!fs.existsSync(ACCOUNTS_DIR)) fs.mkdirSync(ACCOUNTS_DIR, { recursive: true });
-
-function sanitizeMapCode(code) {
-  const clean = typeof code === 'string' ? code.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') : '';
-  return clean.slice(0, 24) || DEFAULT_ACCOUNT_CODE;
-}
 
 app.use(express.json({ limit: '200kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -319,53 +313,98 @@ app.post('/api/video-search', async (req, res) => {
   }
 });
 
-// --- Comptes eleve : le code secret sert d'identifiant, les etoiles y restent attachees ---
-function accountFilePath(code) {
-  return path.join(ACCOUNTS_DIR, `${sanitizeMapCode(code)}.json`);
+const crypto = require('crypto');
+const GRADES = ['CP', 'CE1', 'CE2', 'CM1', 'CM2', '6ème', '5ème', '4ème', '3ème', 'Seconde', 'Première', 'Terminale', 'Université', 'Autre'];
+const GENDERS = ['fille', 'garcon', 'secret'];
+
+// "Léa", "lea" et " LEA " donnent le meme identifiant : un prenom ne peut exister qu'une fois
+function nameKey(name) {
+  return String(name || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24);
 }
 
-function readAccount(code) {
+function accountFilePath(key) {
+  return path.join(ACCOUNTS_DIR, `${key}.json`);
+}
+
+function readAccount(key) {
+  if (!key) return null;
   try {
-    return JSON.parse(fs.readFileSync(accountFilePath(code), 'utf8'));
+    return JSON.parse(fs.readFileSync(accountFilePath(key), 'utf8'));
   } catch {
     return null;
   }
 }
 
-function writeAccount(code, account) {
-  fs.writeFileSync(accountFilePath(code), JSON.stringify(account));
+function writeAccount(account) {
+  fs.writeFileSync(accountFilePath(account.key), JSON.stringify(account));
 }
 
+function hashCode(code, salt) {
+  return crypto.scryptSync(code, salt, 32).toString('hex');
+}
+
+function isStrongCode(code) {
+  return typeof code === 'string' && code.length >= 6 && code.length <= 40 && /[a-zA-Z]/.test(code) && /[0-9]/.test(code);
+}
+
+// Verifie prenom + code ; renvoie le compte ou null
+function checkLogin(name, code) {
+  const account = readAccount(nameKey(name));
+  if (!account || typeof code !== 'string' || !account.salt) return null;
+  const hash = Buffer.from(hashCode(code, account.salt), 'hex');
+  const expected = Buffer.from(account.hash, 'hex');
+  return hash.length === expected.length && crypto.timingSafeEqual(hash, expected) ? account : null;
+}
+
+function publicAccount(a) {
+  return { name: a.name, stars: a.stars || 0, age: a.age, grade: a.grade, gender: a.gender };
+}
+
+// Limite les essais de connexion pour empecher de deviner un code
+const loginTries = new Map();
+function tooManyTries(ip) {
+  const now = Date.now();
+  const list = (loginTries.get(ip) || []).filter((t) => now - t < 60000);
+  list.push(now);
+  loginTries.set(ip, list);
+  return list.length > 15;
+}
+
+app.post('/api/account/register', (req, res) => {
+  const { name, code, codeConfirm, age, grade, gender } = req.body || {};
+  const cleanName = typeof name === 'string' ? name.trim().replace(/\s+/g, ' ') : '';
+  if (!/^[\p{L}][\p{L} '-]{1,15}$/u.test(cleanName)) return res.status(400).json({ error: 'errName' });
+  if (!isStrongCode(code)) return res.status(400).json({ error: 'errCodeWeak' });
+  if (code !== codeConfirm) return res.status(400).json({ error: 'errCodeMismatch' });
+  const ageNum = Number(age);
+  if (!Number.isInteger(ageNum) || ageNum < 4 || ageNum > 99) return res.status(400).json({ error: 'errAge' });
+  if (!GRADES.includes(grade)) return res.status(400).json({ error: 'errGrade' });
+  if (!GENDERS.includes(gender)) return res.status(400).json({ error: 'errGender' });
+  const key = nameKey(cleanName);
+  if (!key) return res.status(400).json({ error: 'errName' });
+  if (readAccount(key)) return res.status(409).json({ error: 'errNameTaken' });
+  const salt = crypto.randomBytes(16).toString('hex');
+  const account = { key, name: cleanName, salt, hash: hashCode(code, salt), age: ageNum, grade, gender, stars: 0, created: Date.now() };
+  writeAccount(account);
+  res.json({ account: publicAccount(account) });
+});
+
 app.post('/api/account/login', (req, res) => {
-  const { name, code } = req.body;
-  if (typeof code !== 'string' || !code.trim()) {
-    return res.status(400).json({ error: 'Code secret manquant' });
+  const { name, code } = req.body || {};
+  if (tooManyTries(req.ip)) return res.status(429).json({ error: 'errTooMany' });
+  if (typeof name !== 'string' || !name.trim() || typeof code !== 'string' || !code) {
+    return res.status(400).json({ error: 'errMissing' });
   }
-  const cleanCode = sanitizeMapCode(code);
-
-  let account = readAccount(cleanCode);
-  if (!account) {
-    account = {
-      code: cleanCode,
-      name: typeof name === 'string' && name.trim() ? name.trim().slice(0, 16) : 'Elève',
-      stars: 0,
-    };
-    writeAccount(cleanCode, account);
-  }
-
-  res.json({ account });
+  const account = checkLogin(name, code);
+  if (!account) return res.status(401).json({ error: 'errLogin' });
+  res.json({ account: publicAccount(account) });
 });
 
 app.post('/api/account/stars', (req, res) => {
-  const { code, stars } = req.body;
-  if (typeof code !== 'string' || !Number.isFinite(stars)) {
-    return res.status(400).json({ error: 'Donnees invalides' });
-  }
-  const cleanCode = sanitizeMapCode(code);
-  const account = readAccount(cleanCode);
-  if (!account) {
-    return res.status(404).json({ error: 'Compte introuvable' });
-  }
+  const { name, code, stars } = req.body || {};
+  if (!Number.isFinite(stars)) return res.status(400).json({ error: 'Donnees invalides' });
+  const account = checkLogin(name, code);
+  if (!account) return res.status(401).json({ error: 'Compte introuvable' });
   const newStars = Math.max(0, Math.round(stars));
   const gain = newStars - (account.stars || 0);
   if (gain > 0) {
@@ -380,7 +419,7 @@ app.post('/api/account/stars', (req, res) => {
     account.gains = recent;
   }
   account.stars = newStars;
-  writeAccount(cleanCode, account);
+  writeAccount(account);
   res.json({ ok: true });
 });
 
