@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Classe Virtuelle</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+
+    <button class="account-btn" id="accountOpenBtn">👤 <span id="accountBtnLabel" data-i18n="accountBtnDefault">Se connecter à ton compte</span></button>
+    <button class="language-btn" id="languageOpenBtn">🌐 <span id="languageBtnLabel">Français</span></button>
+
+    <!-- Etape 1 : choix du professeur -->
+    <div class="onboarding-screen" id="selectScreen">
+      <div class="onboarding-card">
+        <div class="select-icon">📖</div>
+        <h1 class="select-title" data-i18n="appTitle">Classe Virtuelle</h1>
+        <p class="select-subtitle" data-i18n="appSubtitle">Ton prof virtuel t'aide à comprendre sans donner la réponse !</p>
+        <p class="select-label" data-i18n="chooseProf">CHOISIS TON PROFESSEUR</p>
+
+        <div class="select-options">
+          <button class="select-card" id="pickFemale" data-gender="femme">
+            <img src="images/madame.jpg" alt="Madame Virtuelle" class="prof-illustration">
+            <div class="select-name" data-i18n="madameName">Madame</div>
+            <div class="select-sub" data-i18n="madameSub">Virtuelle</div>
+          </button>
+
+          <button class="select-card" id="pickMale" data-gender="homme">
+            <img src="images/monsieur.jpg" alt="Monsieur Virtuel" class="prof-illustration">
+            <div class="select-name" data-i18n="monsieurName">Monsieur</div>
+            <div class="select-sub" data-i18n="monsieurSub">Virtuel</div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Etape 2 : choix de la classe -->
+    <div class="onboarding-screen" id="gradeScreen" style="display:none">
+      <div class="onboarding-card onboarding-card-wide">
+        <button class="back-link" id="backToProf" data-i18n="back">‹ Retour</button>
+        <h1 class="select-title select-title-left" data-i18n="gradeQuestion">Tu es en quelle classe ?</h1>
+        <p class="select-subtitle select-subtitle-left" id="gradeSubtitle" data-i18n="gradeSubtitle">Ton prof virtuel va adapter ses explications pour toi.</p>
+
+        <div class="grade-group">
+          <div class="grade-group-label" data-i18n="groupPrimaire">ÉCOLE PRIMAIRE</div>
+          <div class="grade-options">
+            <button class="grade-btn primaire" data-grade="CP">🌱 CP</button>
+            <button class="grade-btn primaire" data-grade="CE1">📗 CE1</button>
+            <button class="grade-btn primaire" data-grade="CE2">📘 CE2</button>
+            <button class="grade-btn primaire" data-grade="CM1">📙 CM1</button>
+            <button class="grade-btn primaire" data-grade="CM2">📕 CM2</button>
+          </div>
+        </div>
+
+        <div class="grade-group">
+          <div class="grade-group-label" data-i18n="groupCollege">COLLÈGE</div>
+          <div class="grade-options">
+            <button class="grade-btn college" data-grade="6ème">🎒 6ème</button>
+            <button class="grade-btn college" data-grade="5ème">📐 5ème</button>
+            <button class="grade-btn college" data-grade="4ème">🔬 4ème</button>
+            <button class="grade-btn college" data-grade="3ème">📊 3ème</button>
+          </div>
+        </div>
+
+        <div class="grade-group">
+          <div class="grade-group-label" data-i18n="groupLycee">LYCÉE</div>
+          <div class="grade-options">
+            <button class="grade-btn lycee" data-grade="Seconde">🏫 Seconde</button>
+            <button class="grade-btn lycee" data-grade="Première">📖 Première</button>
+            <button class="grade-btn lycee" data-grade="Terminale">🎓 Terminale</button>
+          </div>
+        </div>
+
+        <div class="grade-group">
+          <div class="grade-group-label" data-i18n="groupSuperieur">SUPÉRIEUR</div>
+          <div class="grade-options">
+            <button class="grade-btn superieur" data-grade="Université">🏛 Université</button>
+          </div>
+        </div>
+
+        <div class="grade-group">
+          <div class="grade-group-label" data-i18n="groupAutre">AUTRE</div>
+          <div class="grade-options">
+            <button class="grade-btn autre" data-grade="" data-i18n="autre">❓ Autre</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Etape 3 : choix du theme / matiere -->
+    <div class="onboarding-screen" id="subjectScreen" style="display:none">
+      <div class="onboarding-card onboarding-card-wide">
+        <button class="back-link" id="backToGrade" data-i18n="back">‹ Retour</button>
+        <h1 class="select-title select-title-left" data-i18n="subjectQuestion">Sur quoi veux-tu travailler ?</h1>
+        <p class="select-subtitle select-subtitle-left" data-i18n="subjectSubtitle">Cherche une matière parmi plus de 100 sujets, organisés par catégorie.</p>
+
+        <input type="text" id="subjectSearchOnboarding" class="subject-search subject-search-big" data-i18n-placeholder="searchPlaceholderLong" placeholder="Rechercher un thème (ex: fractions, conjugaison, Révolution française...)">
+        <div class="subject-results subject-results-big" id="subjectResultsOnboarding"></div>
+      </div>
+    </div>
+
+    <!-- Etape 4 : application principale -->
+    <div id="mainApp" style="display:none">
+      <div class="workspace">
+
+        <div class="video-panel">
+          <button class="back-link app-back-link" id="backToSubjectBtn" data-i18n="back">‹ Retour</button>
+          <div class="video-frame">
+            <div class="video-header">✦ <span id="profTitleName">MADAME VIRTUELLE</span> ✦</div>
+            <div class="avatar" id="avatar">
+              <img src="images/madame.jpg" alt="" id="avatarImg" class="avatar-img">
+            </div>
+          </div>
+
+          <div class="status-bar">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText" data-i18n="statusWaiting">En attente</span>
+            <span class="stars-badge" id="starsBadge">⭐ 0</span>
+          </div>
+
+          <button class="subject-bar" id="changeSubjectBtn">
+            <span id="subjectIcon">📐</span>
+            <span id="subjectLabel">Mathématiques</span>
+            <span class="subject-change" data-i18n="changer">Changer</span>
+          </button>
+
+          <div class="subject-picker" id="subjectPicker" style="display:none">
+            <input type="text" id="subjectSearch" class="subject-search" data-i18n-placeholder="searchPlaceholderShort" placeholder="Rechercher un thème (ex: fractions, conjugaison...)">
+            <div class="subject-results" id="subjectResults"></div>
+          </div>
+
+          <div class="conversation">
+            <div class="eleve-line" id="eleveLine" style="display:none"></div>
+            <div class="prof-bubble">
+              <div class="bubble-avatar">✨</div>
+              <div class="bubble-text" id="bubbleText">Bonjour !</div>
+            </div>
+            <button class="suggestion-chip" id="suggestionChip" style="display:none"></button>
+            <div class="error-banner" id="errorBanner" style="display:none"></div>
+          </div>
+
+          <div class="mode-tabs">
+            <button class="mode-tab active" data-mode="voix" data-i18n="modeVoix">🎤 Voix</button>
+            <button class="mode-tab" data-mode="ecrire" data-i18n="modeEcrire">⌨️ Écrire</button>
+            <button class="mode-tab" id="modeQuestionsTab" data-mode="questions" data-i18n="modeQuestions">💡 Questions</button>
+          </div>
+
+          <div class="mode-panel" id="modeVoix">
+            <button id="micBtn" class="mic-btn" data-i18n="micBtn">🎤 Parler au professeur</button>
+          </div>
+
+          <div class="mode-panel" id="modeEcrire" style="display:none">
+            <div class="write-row">
+              <input id="textInput" class="text-input" data-i18n-placeholder="writePlaceholder" placeholder="Écris ta question...">
+              <button id="sendTextBtn" class="send-btn" data-i18n="sendBtn">Envoyer</button>
+            </div>
+          </div>
+
+          <div class="mode-panel" id="modeQuestions" style="display:none">
+            <button id="launchQuizBtn" class="mic-btn quiz-launch-btn" data-mode="qcm" data-i18n="quizLaunchBtnQcm">🎯 QCM comme avant (⭐ 25/bonne réponse)</button>
+            <button id="launchEvalBtn" class="mic-btn quiz-launch-btn" data-mode="evaluation" data-i18n="quizLaunchBtnEval">📋 Évaluation complète (⭐ 30/bonne réponse)</button>
+            <button id="launchEcritBtn" class="mic-btn quiz-launch-btn" data-mode="ecrit" data-i18n="quizLaunchBtnEcrit">✍️ Réponses écrites (⭐ 25-50/bonne réponse)</button>
+          </div>
+
+          <div class="extra-buttons">
+            <button id="openVideoBtn" class="extra-btn" data-i18n="videoBtn">🎥 Vidéo</button>
+            <button id="openFicheBtn" class="extra-btn" data-i18n="ficheBtn">📄 Fiche</button>
+            <button id="openGamesBtn" class="extra-btn" data-i18n="gamesBtn">🎮 Jeux vidéo</button>
+          </div>
+        </div>
+
+        <div class="board-panel">
+          <div class="board-header">
+            <span class="board-title" data-i18n="tableauTitle">🎓 Tableau</span>
+            <div class="color-dots" id="colorDots">
+              <button class="color-dot active" data-color="#1f2b45" style="background:#1f2b45"></button>
+              <button class="color-dot" data-color="#3d7fd6" style="background:#3d7fd6"></button>
+              <button class="color-dot" data-color="#d63b3b" style="background:#d63b3b"></button>
+              <button class="color-dot" data-color="#2fa84f" style="background:#2fa84f"></button>
+              <button class="color-dot" data-color="#e08a2f" style="background:#e08a2f"></button>
+              <button class="color-dot" data-color="#8a4fd6" style="background:#8a4fd6"></button>
+            </div>
+            <button id="eraserBtn" class="icon-btn" title="Gomme" data-i18n-title="gommeTitle">🧹</button>
+            <button id="clearBoardBtn" class="icon-btn danger" title="Tout effacer" data-i18n="effacerBtn" data-i18n-title="toutEffacerTitle">🗑 Effacer</button>
+          </div>
+          <div class="board-canvas-wrap">
+            <canvas id="tableau" width="720" height="640"></canvas>
+            <div class="board-placeholder" id="boardPlaceholder" data-i18n="boardPlaceholder">✏️ Dessine ici ou parle au prof pour qu'il écrive sur le tableau</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ecran du quiz -->
+    <div class="quiz-screen" id="quizScreen" style="display:none">
+      <button class="quiz-close" id="quizCloseBtn">✕</button>
+
+      <div class="quiz-topbar">
+        <div class="quiz-badge" id="quizBadge">🎓 Quiz</div>
+        <div class="quiz-score"><span class="quiz-star">⭐</span><span id="quizScore">0000</span></div>
+      </div>
+
+      <div class="quiz-timer-wrap">
+        <div class="quiz-timer" id="quizTimer">20</div>
+      </div>
+
+      <div class="quiz-loading" id="quizLoading" data-i18n="quizLoading">Préparation du quiz...</div>
+
+      <div class="quiz-body" id="quizBody" style="display:none">
+        <div class="quiz-question-bubble">
+          <div class="quiz-question-number" id="quizQNumber">Question 1</div>
+          <div class="quiz-question-text" id="quizQText"></div>
+        </div>
+
+        <div class="quiz-options" id="quizOptions">
+          <button class="quiz-option quiz-option-a" data-idx="0"><span class="quiz-letter">A</span><span class="quiz-option-text"></span></button>
+          <button class="quiz-option quiz-option-b" data-idx="1"><span class="quiz-letter">B</span><span class="quiz-option-text"></span></button>
+          <button class="quiz-option quiz-option-c" data-idx="2"><span class="quiz-letter">C</span><span class="quiz-option-text"></span></button>
+          <button class="quiz-option quiz-option-d" data-idx="3"><span class="quiz-letter">D</span><span class="quiz-option-text"></span></button>
+        </div>
+
+        <div class="quiz-written" id="quizWritten" style="display:none">
+          <input type="text" id="quizWrittenInput" class="quiz-written-input" data-i18n-placeholder="quizWrittenPlaceholder" placeholder="Écris ta réponse...">
+          <button class="quiz-next-btn" id="quizWrittenValidateBtn" data-i18n="quizValidateBtn">Valider</button>
+        </div>
+
+        <div class="quiz-explanation" id="quizExplanation" style="display:none"></div>
+        <button class="quiz-next-btn" id="quizNextBtn" style="display:none" data-i18n="quizNextBtn">Suivant →</button>
+      </div>
+
+      <!-- Evaluation complete : toutes les questions sur une seule page -->
+      <div class="quiz-eval-body" id="quizEvalBody" style="display:none">
+        <div class="quiz-eval-list" id="quizEvalList"></div>
+        <button class="quiz-next-btn" id="quizEvalValidateBtn" data-i18n="quizValidateAllBtn">Valider mes réponses</button>
+      </div>
+
+      <div class="quiz-result" id="quizResult" style="display:none">
+        <div class="quiz-result-title" data-i18n="quizResultTitle">🎉 Quiz terminé !</div>
+        <div class="quiz-result-score" id="quizResultScore"></div>
+        <div class="quiz-result-actions">
+          <button id="quizRestartBtn" class="quiz-result-btn" data-i18n="quizRestartBtn">🔁 Recommencer</button>
+          <button id="quizBackBtn" class="quiz-result-btn quiz-back-btn" data-i18n="back">‹ Retour</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ecran video -->
+    <div class="video-screen" id="videoScreen" style="display:none">
+      <div class="video-screen-header">
+        <div class="video-screen-title" id="videoScreenTitle">🎥 Vidéo : Fractions</div>
+        <button class="video-close" id="videoCloseBtn">✕</button>
+      </div>
+      <div class="video-reward-banner" id="videoRewardBanner" style="display:none"></div>
+      <div class="video-screen-body" id="videoScreenBody">
+        <div id="videoIframe"></div>
+      </div>
+    </div>
+
+    <!-- Ecran fiche de cours -->
+    <div class="fiche-screen" id="ficheScreen" style="display:none">
+      <div class="fiche-header">
+        <div class="fiche-header-title" id="ficheHeaderTitle" data-i18n="ficheHeaderTitle">📄 Fiche de cours</div>
+        <div class="fiche-header-actions">
+          <button id="downloadFicheBtn" class="fiche-download-btn" style="display:none" data-i18n="downloadFicheBtn">⬇️ Télécharger</button>
+          <button class="fiche-close" id="ficheCloseBtn">✕</button>
+        </div>
+      </div>
+      <div class="fiche-body">
+        <div class="fiche-loading" id="ficheLoading" data-i18n="ficheLoading">Génération de ta fiche de cours...</div>
+        <div class="fiche-paper" id="ficheContent" style="display:none">
+          <h1 id="ficheTitre"></h1>
+          <div id="ficheMeta" class="fiche-meta"></div>
+          <div id="ficheSections"></div>
+          <div class="fiche-resume-box">
+            <div class="fiche-resume-label" data-i18n="ficheResumeLabel">📌 À retenir</div>
+            <div id="ficheResume"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ecran salle d'arcade -->
+    <div class="games-screen" id="gamesScreen" style="display:none">
+      <div class="games-header">
+        <div class="games-header-title" data-i18n="gamesHeaderTitle">🎮 Jeux vidéo</div>
+        <div class="games-header-actions">
+          <span class="stars-badge" id="gamesStarsBadge">⭐ 0</span>
+          <button class="games-close" id="gamesCloseBtn">✕</button>
+        </div>
+      </div>
+      <div class="games-list" id="gamesList"></div>
+
+      <!-- Ecran de jeu (canvas partage par les 4 jeux) -->
+      <div class="game-play-screen" id="gamePlayScreen" style="display:none">
+        <div class="game-play-header">
+          <span class="game-play-title" id="gamePlayTitle"></span>
+          <span class="game-play-timer" id="gamePlayTimer">30</span>
+          <button class="games-close" id="gamePlayCloseBtn">✕</button>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div class="game-end-overlay" id="gameEndOverlay" style="display:none">
+          <div class="game-end-text" id="gameEndText"></div>
+          <button class="quiz-result-btn" id="gameEndCloseBtn" data-i18n="close">‹ Fermer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ecran Compte : connexion / creation, garde les etoiles d'une visite a l'autre -->
+    <div class="account-screen" id="accountScreen" style="display:none">
+      <div class="account-card">
+        <button class="back-link" id="accountCloseBtn" data-i18n="back">‹ Retour</button>
+        <h1 class="select-title select-title-left" data-i18n="accountHeading">👤 Ton compte</h1>
+        <p class="account-text" data-i18n="accountIntro">Crée un compte pour garder tes étoiles d'une visite à l'autre. Sans compte, tout repart à zéro à chaque visite.</p>
+
+        <div id="accountLoggedOutView">
+          <input type="text" id="accountNameInput" class="ville-username-input" maxlength="16" data-i18n-placeholder="accountNamePlaceholder" placeholder="Ton prénom">
+          <input type="text" id="accountCodeInput" class="ville-username-input" maxlength="20" data-i18n-placeholder="accountCodePlaceholder" placeholder="Code secret (ex: pomme123)">
+          <p class="account-error" id="accountError" style="display:none"></p>
+          <button id="accountLoginBtn" class="quiz-result-btn" data-i18n="accountLoginBtn">Se connecter / Créer mon compte</button>
+        </div>
+
+        <div id="accountLoggedInView" style="display:none">
+          <p class="account-text"><span data-i18n="accountLoggedAs">Connecté en tant que</span> <strong id="accountLoggedName"></strong></p>
+          <p class="account-text">⭐ <span id="accountLoggedStars">0</span> <span data-i18n="accountStarsSaved">étoiles sauvegardées</span></p>
+          <button id="accountLogoutBtn" class="quiz-result-btn modal-back-btn" data-i18n="accountLogoutBtn">Se déconnecter</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ecran Langue : change la langue dans laquelle le prof parle/ecrit -->
+    <div class="account-screen" id="languageScreen" style="display:none">
+      <div class="account-card">
+        <button class="back-link" id="languageCloseBtn" data-i18n="back">‹ Retour</button>
+        <h1 class="select-title select-title-left" data-i18n="languageHeading">🌐 Choisis ta langue</h1>
+        <p class="account-text" data-i18n="languageIntro">Le professeur te parlera et t'écrira dans cette langue.</p>
+        <div class="language-options" id="languageOptions"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
