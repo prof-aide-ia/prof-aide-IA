@@ -300,6 +300,16 @@
           <button class="games-close" id="gamePlayCloseBtn">✕</button>
         </div>
         <canvas id="gameCanvas"></canvas>
+        <!-- Manette tactile pour jouer sur telephone -->
+        <div class="game-touch-pad" id="gameTouchPad">
+          <div class="game-touch-arrows">
+            <button class="game-touch-btn" data-key="ArrowUp">▲</button>
+            <button class="game-touch-btn" data-key="ArrowLeft">◀</button>
+            <button class="game-touch-btn" data-key="ArrowDown">▼</button>
+            <button class="game-touch-btn" data-key="ArrowRight">▶</button>
+          </div>
+          <button class="game-touch-btn game-touch-fire" data-key=" ">🔥</button>
+        </div>
         <div class="game-end-overlay" id="gameEndOverlay" style="display:none">
           <div class="game-end-text" id="gameEndText"></div>
           <button class="quiz-result-btn" id="gameEndCloseBtn" data-i18n="close">‹ Fermer</button>

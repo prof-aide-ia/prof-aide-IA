@@ -2568,6 +2568,18 @@ function gameKeyUp(e) { gameKeysPressed.delete(e.key); }
 window.addEventListener('keydown', gameKeyDown);
 window.addEventListener('keyup', gameKeyUp);
 
+// Manette tactile : chaque bouton fait comme la touche du clavier correspondante
+document.querySelectorAll('.game-touch-btn').forEach((btn) => {
+  const key = btn.dataset.key;
+  const press = (e) => { e.preventDefault(); gameKeysPressed.add(key); btn.classList.add('pressed'); };
+  const release = (e) => { e.preventDefault(); gameKeysPressed.delete(key); btn.classList.remove('pressed'); };
+  btn.addEventListener('pointerdown', press);
+  btn.addEventListener('pointerup', release);
+  btn.addEventListener('pointercancel', release);
+  btn.addEventListener('pointerleave', release);
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
+});
+
 function gameCanvasPos(e) {
   const rect = gameCanvas.getBoundingClientRect();
   return {
@@ -2600,6 +2612,7 @@ function startGame(key, tier) {
   gameFrame = 0;
   gameTimeLeft = chosenTier.duration;
   gameKeysPressed.clear();
+  gamePlayScreen.dataset.game = key;
   gamePlayTitle.textContent = GAMES.find(g => g.key === key).title;
   gamePlayTimer.textContent = gameTimeLeft;
   gameEndOverlay.style.display = 'none';
