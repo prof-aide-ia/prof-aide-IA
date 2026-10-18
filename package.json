@@ -1,0 +1,14 @@
+{
+  "name": "maitresse-virtuelle",
+  "version": "1.0.0",
+  "description": "Classe Virtuelle : un prof virtuel qui aide a faire ses devoirs sans donner la reponse.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "youtube-search-api": "^2.0.1"
+  }
+}
