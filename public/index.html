@@ -2,8 +2,14 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>Classe Virtuelle</title>
+<title>Prof Aide IA – Aide aux devoirs avec une IA</title>
+<meta name="description" content="Aide pour les devoirs avec une IA : un prof virtuel qui t'explique sans donner la réponse, des quiz, des fiches de cours et des vidéos, du CP à l'université.">
+<meta name="keywords" content="aide aux devoirs, aide pour devoir, IA pour devoir, prof virtuel, soutien scolaire, quiz, fiche de cours">
+<meta property="og:title" content="Prof Aide IA – Aide aux devoirs avec une IA">
+<meta property="og:description" content="Un prof virtuel qui t'aide à comprendre tes devoirs sans donner la réponse.">
+<meta property="og:url" content="https://prof-aide-ia.onrender.com/">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,7 +22,7 @@
     <div class="onboarding-screen" id="selectScreen">
       <div class="onboarding-card">
         <div class="select-icon">📖</div>
-        <h1 class="select-title" data-i18n="appTitle">Classe Virtuelle</h1>
+        <h1 class="select-title" data-i18n="appTitle">Prof Aide IA</h1>
         <p class="select-subtitle" data-i18n="appSubtitle">Ton prof virtuel t'aide à comprendre sans donner la réponse !</p>
         <p class="select-label" data-i18n="chooseProf">CHOISIS TON PROFESSEUR</p>
 
@@ -300,6 +306,16 @@
           <button class="games-close" id="gamePlayCloseBtn">✕</button>
         </div>
         <canvas id="gameCanvas"></canvas>
+        <!-- Manette tactile pour jouer sur telephone -->
+        <div class="game-touch-pad" id="gameTouchPad">
+          <div class="game-touch-arrows">
+            <button class="game-touch-btn" data-key="ArrowUp">▲</button>
+            <button class="game-touch-btn" data-key="ArrowLeft">◀</button>
+            <button class="game-touch-btn" data-key="ArrowDown">▼</button>
+            <button class="game-touch-btn" data-key="ArrowRight">▶</button>
+          </div>
+          <button class="game-touch-btn game-touch-fire" data-key=" ">🔥</button>
+        </div>
         <div class="game-end-overlay" id="gameEndOverlay" style="display:none">
           <div class="game-end-text" id="gameEndText"></div>
           <button class="quiz-result-btn" id="gameEndCloseBtn" data-i18n="close">‹ Fermer</button>
@@ -315,10 +331,48 @@
         <p class="account-text" data-i18n="accountIntro">Crée un compte pour garder tes étoiles d'une visite à l'autre. Sans compte, tout repart à zéro à chaque visite.</p>
 
         <div id="accountLoggedOutView">
-          <input type="text" id="accountNameInput" class="ville-username-input" maxlength="16" data-i18n-placeholder="accountNamePlaceholder" placeholder="Ton prénom">
-          <input type="text" id="accountCodeInput" class="ville-username-input" maxlength="20" data-i18n-placeholder="accountCodePlaceholder" placeholder="Code secret (ex: pomme123)">
+          <input type="text" id="accountNameInput" class="ville-username-input" maxlength="16" autocomplete="username" data-i18n-placeholder="accountNamePlaceholder" placeholder="Ton prénom">
+          <input type="password" id="accountCodeInput" class="ville-username-input" maxlength="40" autocomplete="current-password" data-i18n-placeholder="accountCodeLoginPlaceholder" placeholder="Ton code secret">
           <p class="account-error" id="accountError" style="display:none"></p>
-          <button id="accountLoginBtn" class="quiz-result-btn" data-i18n="accountLoginBtn">Se connecter / Créer mon compte</button>
+          <button id="accountLoginBtn" class="quiz-result-btn" data-i18n="accountLoginBtn">Se connecter</button>
+          <div class="account-switch">
+            <span data-i18n="accountNoAccount">Pas encore de compte ?</span>
+            <button id="accountShowRegisterBtn" class="quiz-result-btn account-create-btn" data-i18n="accountCreateBtn">✨ Créer un compte</button>
+          </div>
+        </div>
+
+        <div id="accountRegisterView" style="display:none">
+          <h2 class="account-subtitle" data-i18n="accountCreateHeading">✨ Créer ton compte</h2>
+          <label class="account-label" for="regNameInput" data-i18n="accountNameLabel">Ton prénom</label>
+          <input type="text" id="regNameInput" class="ville-username-input" maxlength="16" autocomplete="off" data-i18n-placeholder="accountNamePlaceholder" placeholder="Ton prénom">
+          <label class="account-label" for="regCodeInput" data-i18n="accountCodeLabel">Ton code secret</label>
+          <input type="password" id="regCodeInput" class="ville-username-input" maxlength="40" autocomplete="new-password" data-i18n-placeholder="accountCodePlaceholder" placeholder="Code secret (ex: pomme123)">
+          <ul class="account-rules" id="regCodeRules">
+            <li data-rule="len" data-i18n="ruleLen">Au moins 6 caractères</li>
+            <li data-rule="letter" data-i18n="ruleLetter">Au moins une lettre</li>
+            <li data-rule="digit" data-i18n="ruleDigit">Au moins un chiffre</li>
+          </ul>
+          <input type="password" id="regCode2Input" class="ville-username-input" maxlength="40" autocomplete="new-password" data-i18n-placeholder="accountCodeConfirmPlaceholder" placeholder="Retape ton code secret">
+          <p class="account-match" id="regCodeMatch"></p>
+          <div class="account-row">
+            <div>
+              <label class="account-label" for="regAgeInput" data-i18n="accountAgeLabel">Ton âge</label>
+              <input type="number" id="regAgeInput" class="ville-username-input" min="4" max="99" inputmode="numeric">
+            </div>
+            <div>
+              <label class="account-label" for="regGradeSelect" data-i18n="accountGradeLabel">Ta classe</label>
+              <select id="regGradeSelect" class="ville-username-input"></select>
+            </div>
+          </div>
+          <span class="account-label" data-i18n="accountGenderLabel">Tu es :</span>
+          <div class="account-gender" id="regGender">
+            <button type="button" class="account-gender-btn" data-gender="fille" data-i18n="genderGirl">👧 Une fille</button>
+            <button type="button" class="account-gender-btn" data-gender="garcon" data-i18n="genderBoy">👦 Un garçon</button>
+            <button type="button" class="account-gender-btn" data-gender="secret" data-i18n="genderSecret">🤐 Je préfère ne pas le dire</button>
+          </div>
+          <p class="account-error" id="regError" style="display:none"></p>
+          <button id="accountRegisterBtn" class="quiz-result-btn" data-i18n="accountRegisterBtn">Créer mon compte</button>
+          <button id="accountShowLoginBtn" class="account-link" data-i18n="accountHaveAccount">J'ai déjà un compte</button>
         </div>
 
         <div id="accountLoggedInView" style="display:none">

@@ -348,7 +348,7 @@ function syncAccountStars() {
   fetch('/api/account/stars', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ code: villeAccount.code, stars }),
+    body: JSON.stringify({ name: villeAccount.name, code: villeAccount.code, stars }),
   })
     .then(async (res) => {
       if (res.status === 429) {
@@ -378,18 +378,44 @@ function spendStars(amount) {
 
 updateStarsDisplay();
 
-// ============ Compte (nom + code secret), accessible depuis le bouton en haut a droite ============
+// ============ Compte (prenom unique + code secret), accessible depuis le bouton en haut a droite ============
+const accountRegisterView = document.getElementById('accountRegisterView');
+const accountShowRegisterBtn = document.getElementById('accountShowRegisterBtn');
+const accountShowLoginBtn = document.getElementById('accountShowLoginBtn');
+const accountRegisterBtn = document.getElementById('accountRegisterBtn');
+const regNameInput = document.getElementById('regNameInput');
+const regCodeInput = document.getElementById('regCodeInput');
+const regCode2Input = document.getElementById('regCode2Input');
+const regCodeRules = document.getElementById('regCodeRules');
+const regCodeMatch = document.getElementById('regCodeMatch');
+const regAgeInput = document.getElementById('regAgeInput');
+const regGradeSelect = document.getElementById('regGradeSelect');
+const regGender = document.getElementById('regGender');
+const regError = document.getElementById('regError');
+const ACCOUNT_GRADES = ['CP', 'CE1', 'CE2', 'CM1', 'CM2', '6ème', '5ème', '4ème', '3ème', 'Seconde', 'Première', 'Terminale', 'Université', 'Autre'];
+let regGenderValue = null;
+
+function showAccountError(el, key) {
+  el.textContent = t(key);
+  el.style.display = 'block';
+}
+
+function showAccountView(view) {
+  accountLoggedOutView.style.display = view === 'login' ? 'block' : 'none';
+  accountRegisterView.style.display = view === 'register' ? 'block' : 'none';
+  accountLoggedInView.style.display = view === 'logged' ? 'block' : 'none';
+  accountError.style.display = 'none';
+  regError.style.display = 'none';
+}
+
 function openAccountScreen() {
   stopProfSpeaking();
-  accountError.style.display = 'none';
   if (villeAccount) {
-    accountLoggedOutView.style.display = 'none';
-    accountLoggedInView.style.display = 'block';
+    showAccountView('logged');
     accountLoggedName.textContent = villeAccount.name;
     accountLoggedStars.textContent = stars;
   } else {
-    accountLoggedOutView.style.display = 'block';
-    accountLoggedInView.style.display = 'none';
+    showAccountView('login');
     accountNameInput.value = '';
     accountCodeInput.value = '';
   }
@@ -400,48 +426,111 @@ function closeAccountScreen() {
   accountScreen.style.display = 'none';
 }
 
-async function loginAccount() {
-  const name = accountNameInput.value.trim();
-  const code = accountCodeInput.value.trim();
-  if (!code) {
-    accountError.textContent = 'Entre un code secret.';
-    accountError.style.display = 'block';
-    return;
-  }
+function openRegisterView() {
+  regNameInput.value = accountNameInput.value.trim();
+  regCodeInput.value = '';
+  regCode2Input.value = '';
+  regAgeInput.value = '';
+  regGenderValue = null;
+  regGender.querySelectorAll('.account-gender-btn').forEach(b => b.classList.remove('selected'));
+  regGradeSelect.innerHTML = `<option value="">${t('accountGradeChoose')}</option>` + ACCOUNT_GRADES.map(g =>
+    `<option value="${g}">${g === 'Autre' ? t('autre').replace(/^\S+\s/, '') : translateGradeCode(g)}</option>`).join('');
+  if (grade && ACCOUNT_GRADES.includes(grade)) regGradeSelect.value = grade;
+  updateCodeChecks();
+  showAccountView('register');
+  regNameInput.focus();
+}
+
+// Coche en direct chaque regle du code secret, et dit si les deux codes sont pareils
+function codeRules(code) {
+  return { len: code.length >= 6, letter: /[a-zA-Z]/.test(code), digit: /[0-9]/.test(code) };
+}
+function updateCodeChecks() {
+  const rules = codeRules(regCodeInput.value);
+  regCodeRules.querySelectorAll('li').forEach(li => li.classList.toggle('ok', rules[li.dataset.rule]));
+  const c2 = regCode2Input.value;
+  regCodeMatch.className = 'account-match';
+  if (!c2) regCodeMatch.textContent = '';
+  else if (c2 === regCodeInput.value) { regCodeMatch.textContent = t('codesMatch'); regCodeMatch.classList.add('ok'); }
+  else { regCodeMatch.textContent = t('errCodeMismatch'); regCodeMatch.classList.add('bad'); }
+}
+regCodeInput.addEventListener('input', updateCodeChecks);
+regCode2Input.addEventListener('input', updateCodeChecks);
+
+regGender.addEventListener('click', (e) => {
+  const btn = e.target.closest('.account-gender-btn');
+  if (!btn) return;
+  regGenderValue = btn.dataset.gender;
+  regGender.querySelectorAll('.account-gender-btn').forEach(b => b.classList.toggle('selected', b === btn));
+});
+
+function onAccountReady(account, code) {
+  villeAccount = { ...account, code };
+  stars = villeAccount.stars;
+  updateStarsDisplay();
+  accountBtnLabel.textContent = villeAccount.name;
+  openAccountScreen();
+}
+
+async function postAccount(url, body, errorEl) {
   try {
-    const res = await fetch('/api/account/login', {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, code }),
+      body: JSON.stringify(body),
     });
     const data = await res.json();
     if (!res.ok) {
-      accountError.textContent = data.error || 'Connexion impossible.';
-      accountError.style.display = 'block';
-      return;
+      showAccountError(errorEl, data.error || 'errServer');
+      return null;
     }
-    villeAccount = data.account;
-    stars = villeAccount.stars;
-    updateStarsDisplay();
-    accountBtnLabel.textContent = villeAccount.name;
-    openAccountScreen();
+    return data.account;
   } catch {
-    accountError.textContent = 'Connexion impossible, réessaie.';
-    accountError.style.display = 'block';
+    showAccountError(errorEl, 'errServer');
+    return null;
   }
+}
+
+async function loginAccount() {
+  const name = accountNameInput.value.trim();
+  const code = accountCodeInput.value;
+  if (!name || !code) return showAccountError(accountError, 'errMissing');
+  const account = await postAccount('/api/account/login', { name, code }, accountError);
+  if (account) onAccountReady(account, code);
+}
+
+async function registerAccount() {
+  const name = regNameInput.value.trim();
+  const code = regCodeInput.value;
+  const rules = codeRules(code);
+  if (!/^[\p{L}][\p{L} '-]{1,15}$/u.test(name)) return showAccountError(regError, 'errName');
+  if (!rules.len || !rules.letter || !rules.digit) return showAccountError(regError, 'errCodeWeak');
+  if (code !== regCode2Input.value) return showAccountError(regError, 'errCodeMismatch');
+  const age = Number(regAgeInput.value);
+  if (!Number.isInteger(age) || age < 4 || age > 99) return showAccountError(regError, 'errAge');
+  if (!regGradeSelect.value) return showAccountError(regError, 'errGrade');
+  if (!regGenderValue) return showAccountError(regError, 'errGender');
+  const account = await postAccount('/api/account/register', {
+    name, code, codeConfirm: regCode2Input.value, age, grade: regGradeSelect.value, gender: regGenderValue,
+  }, regError);
+  if (account) onAccountReady(account, code);
 }
 
 function logoutAccount() {
   villeAccount = null;
   stars = 0;
   updateStarsDisplay();
-  accountBtnLabel.textContent = 'Se connecter à ton compte';
+  accountBtnLabel.textContent = t('accountBtnDefault');
   openAccountScreen();
 }
 
 accountOpenBtn.addEventListener('click', openAccountScreen);
 accountCloseBtn.addEventListener('click', closeAccountScreen);
 accountLoginBtn.addEventListener('click', loginAccount);
+accountCodeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginAccount(); });
+accountShowRegisterBtn.addEventListener('click', openRegisterView);
+accountShowLoginBtn.addEventListener('click', () => showAccountView('login'));
+accountRegisterBtn.addEventListener('click', registerAccount);
 accountLogoutBtn.addEventListener('click', logoutAccount);
 
 // ============ Langue : le prof parle/ecrit dans la langue choisie (menus du site restent en francais) ============
@@ -501,7 +590,7 @@ languageBtnLabel.textContent = profLanguage.label;
 // (trop de contenu a traduire), seuls les menus/boutons/textes fixes sont couverts ici.
 const I18N = {
   'fr-FR': {
-    accountBtnDefault: "Se connecter à ton compte", appTitle: "Classe Virtuelle",
+    accountBtnDefault: "Se connecter à ton compte", appTitle: "Prof Aide IA",
     appSubtitle: "Ton prof virtuel t'aide à comprendre sans donner la réponse !",
     chooseProf: "CHOISIS TON PROFESSEUR", madameName: "Madame", madameSub: "Virtuelle",
     monsieurName: "Monsieur", monsieurSub: "Virtuel", back: "‹ Retour",
@@ -573,7 +662,7 @@ const I18N = {
     quizDifficultyHarder: "Le prochain quiz sera un peu plus difficile !",
   },
   'en-US': {
-    accountBtnDefault: "Log in to your account", appTitle: "Virtual Classroom",
+    accountBtnDefault: "Log in to your account", appTitle: "Prof Aide IA",
     appSubtitle: "Your virtual teacher helps you understand without giving the answer!",
     chooseProf: "CHOOSE YOUR TEACHER", madameName: "Ms.", madameSub: "Virtual",
     monsieurName: "Mr.", monsieurSub: "Virtual", back: "‹ Back",
@@ -645,7 +734,7 @@ const I18N = {
     quizDifficultyHarder: "The next quiz will be a bit harder!",
   },
   'zh-CN': {
-    accountBtnDefault: "登录你的账户", appTitle: "虚拟课堂", appSubtitle: "你的虚拟老师帮助你理解，而不是直接给答案！",
+    accountBtnDefault: "登录你的账户", appTitle: "Prof Aide IA", appSubtitle: "你的虚拟老师帮助你理解，而不是直接给答案！",
     chooseProf: "选择你的老师", madameName: "女老师", madameSub: "虚拟", monsieurName: "男老师", monsieurSub: "虚拟",
     back: "‹ 返回", gradeQuestion: "你在读几年级？", gradeSubtitle: "你的虚拟老师会为你调整讲解方式。",
     groupPrimaire: "小学", groupCollege: "初中", groupLycee: "高中", groupSuperieur: "大学", groupAutre: "其他",
@@ -675,7 +764,7 @@ const I18N = {
     quizDifficultyHarder: "下次测验会更难一些！",
   },
   'hi-IN': {
-    accountBtnDefault: "अपने खाते में लॉग इन करें", appTitle: "वर्चुअल क्लासरूम",
+    accountBtnDefault: "अपने खाते में लॉग इन करें", appTitle: "Prof Aide IA",
     appSubtitle: "तुम्हारा वर्चुअल शिक्षक बिना उत्तर दिए तुम्हें समझने में मदद करता है!",
     chooseProf: "अपना शिक्षक चुनो", madameName: "मैडम", madameSub: "वर्चुअल", monsieurName: "सर", monsieurSub: "वर्चुअल",
     back: "‹ वापस", gradeQuestion: "तुम किस कक्षा में हो?", gradeSubtitle: "तुम्हारा शिक्षक अपनी व्याख्या तुम्हारे अनुसार ढालेगा।",
@@ -713,7 +802,7 @@ const I18N = {
     quizDifficultyHarder: "अगला क्विज़ थोड़ा कठिन होगा!",
   },
   'es-ES': {
-    accountBtnDefault: "Inicia sesión en tu cuenta", appTitle: "Aula Virtual",
+    accountBtnDefault: "Inicia sesión en tu cuenta", appTitle: "Prof Aide IA",
     appSubtitle: "¡Tu profesor virtual te ayuda a entender sin darte la respuesta!",
     chooseProf: "ELIGE A TU PROFESOR", madameName: "Señora", madameSub: "Virtual", monsieurName: "Señor", monsieurSub: "Virtual",
     back: "‹ Volver", gradeQuestion: "¿En qué curso estás?", gradeSubtitle: "Tu profesor virtual adaptará sus explicaciones para ti.",
@@ -753,7 +842,7 @@ const I18N = {
     quizDifficultyHarder: "¡El próximo quiz será un poco más difícil!",
   },
   'ar-SA': {
-    accountBtnDefault: "سجّل الدخول إلى حسابك", appTitle: "الفصل الافتراضي",
+    accountBtnDefault: "سجّل الدخول إلى حسابك", appTitle: "Prof Aide IA",
     appSubtitle: "معلمك الافتراضي يساعدك على الفهم دون إعطائك الإجابة!",
     chooseProf: "اختر معلمك", madameName: "المعلمة", madameSub: "الافتراضية", monsieurName: "المعلم", monsieurSub: "الافتراضي",
     back: "‹ رجوع", gradeQuestion: "في أي صف أنت؟", gradeSubtitle: "سيكيّف معلمك الافتراضي شرحه من أجلك.",
@@ -792,7 +881,7 @@ const I18N = {
     quizDifficultyHarder: "سيكون الاختبار القادم أصعب قليلاً!",
   },
   'bn-BD': {
-    accountBtnDefault: "তোমার অ্যাকাউন্টে লগ ইন করো", appTitle: "ভার্চুয়াল ক্লাসরুম",
+    accountBtnDefault: "তোমার অ্যাকাউন্টে লগ ইন করো", appTitle: "Prof Aide IA",
     appSubtitle: "তোমার ভার্চুয়াল শিক্ষক উত্তর না দিয়ে তোমাকে বুঝতে সাহায্য করে!",
     chooseProf: "তোমার শিক্ষক বেছে নাও", madameName: "ম্যাডাম", madameSub: "ভার্চুয়াল", monsieurName: "স্যার", monsieurSub: "ভার্চুয়াল",
     back: "‹ ফিরে যাও", gradeQuestion: "তুমি কোন শ্রেণিতে পড়ো?", gradeSubtitle: "তোমার শিক্ষক তোমার জন্য ব্যাখ্যা মানিয়ে নেবে।",
@@ -830,7 +919,7 @@ const I18N = {
     quizDifficultyHarder: "পরবর্তী কুইজ কিছুটা কঠিন হবে!",
   },
   'pt-PT': {
-    accountBtnDefault: "Inicia sessão na tua conta", appTitle: "Sala de Aula Virtual",
+    accountBtnDefault: "Inicia sessão na tua conta", appTitle: "Prof Aide IA",
     appSubtitle: "O teu professor virtual ajuda-te a compreender sem te dar a resposta!",
     chooseProf: "ESCOLHE O TEU PROFESSOR", madameName: "Senhora", madameSub: "Virtual", monsieurName: "Senhor", monsieurSub: "Virtual",
     back: "‹ Voltar", gradeQuestion: "Em que ano estás?", gradeSubtitle: "O teu professor virtual vai adaptar as explicações para ti.",
@@ -869,7 +958,7 @@ const I18N = {
     quizDifficultyHarder: "O próximo quiz vai ser um pouco mais difícil!",
   },
   'ru-RU': {
-    accountBtnDefault: "Войти в свой аккаунт", appTitle: "Виртуальный Класс",
+    accountBtnDefault: "Войти в свой аккаунт", appTitle: "Prof Aide IA",
     appSubtitle: "Твой виртуальный учитель помогает понять, не давая готовый ответ!",
     chooseProf: "ВЫБЕРИ СВОЕГО УЧИТЕЛЯ", madameName: "Мадам", madameSub: "Виртуальная", monsieurName: "Месье", monsieurSub: "Виртуальный",
     back: "‹ Назад", gradeQuestion: "В каком ты классе?", gradeSubtitle: "Твой виртуальный учитель адаптирует объяснения для тебя.",
@@ -908,7 +997,7 @@ const I18N = {
     quizDifficultyHarder: "Следующий тест будет немного сложнее!",
   },
   'ur-PK': {
-    accountBtnDefault: "اپنے اکاؤنٹ میں لاگ ان کریں", appTitle: "ورچوئل کلاس روم",
+    accountBtnDefault: "اپنے اکاؤنٹ میں لاگ ان کریں", appTitle: "Prof Aide IA",
     appSubtitle: "تمہارا ورچوئل استاد جواب دیے بغیر تمہیں سمجھنے میں مدد کرتا ہے!",
     chooseProf: "اپنا استاد چنیں", madameName: "میڈم", madameSub: "ورچوئل", monsieurName: "سر", monsieurSub: "ورچوئل",
     back: "‹ واپس", gradeQuestion: "تم کس جماعت میں ہو؟", gradeSubtitle: "تمہارا استاد اپنی وضاحت تمہارے لیے ڈھالے گا۔",
@@ -946,7 +1035,7 @@ const I18N = {
     quizDifficultyHarder: "اگلا کوئز تھوڑا مشکل ہوگا!",
   },
   'de-DE': {
-    accountBtnDefault: "In dein Konto einloggen", appTitle: "Virtuelles Klassenzimmer",
+    accountBtnDefault: "In dein Konto einloggen", appTitle: "Prof Aide IA",
     appSubtitle: "Dein virtueller Lehrer hilft dir zu verstehen, ohne die Antwort zu verraten!",
     chooseProf: "WÄHLE DEINE LEHRKRAFT", madameName: "Frau", madameSub: "Virtuell",
     monsieurName: "Herr", monsieurSub: "Virtuell", back: "‹ Zurück",
@@ -1018,7 +1107,7 @@ const I18N = {
     quizDifficultyHarder: "Das nächste Quiz wird etwas schwerer!",
   },
   'ja-JP': {
-    accountBtnDefault: "アカウントにログイン", appTitle: "バーチャル教室",
+    accountBtnDefault: "アカウントにログイン", appTitle: "Prof Aide IA",
     appSubtitle: "バーチャル先生は、答えを教えずに「わかった！」を手伝ってくれるよ！",
     chooseProf: "先生を選ぼう", madameName: "女の先生", madameSub: "バーチャル",
     monsieurName: "男の先生", monsieurSub: "バーチャル", back: "‹ 戻る",
@@ -1090,7 +1179,7 @@ const I18N = {
     quizDifficultyHarder: "次のクイズは少しむずかしくなるよ！",
   },
   'it-IT': {
-    accountBtnDefault: "Accedi al tuo account", appTitle: "Classe Virtuale",
+    accountBtnDefault: "Accedi al tuo account", appTitle: "Prof Aide IA",
     appSubtitle: "Il tuo insegnante virtuale ti aiuta a capire senza darti la risposta!",
     chooseProf: "SCEGLI IL TUO INSEGNANTE", madameName: "Professoressa", madameSub: "Virtuale",
     monsieurName: "Professore", monsieurSub: "Virtuale", back: "‹ Indietro",
@@ -1162,7 +1251,7 @@ const I18N = {
     quizDifficultyHarder: "Il prossimo quiz sarà un po' più difficile!",
   },
   'ko-KR': {
-    accountBtnDefault: "내 계정에 로그인", appTitle: "가상 교실",
+    accountBtnDefault: "내 계정에 로그인", appTitle: "Prof Aide IA",
     appSubtitle: "가상 선생님이 정답을 알려 주지 않고 이해하도록 도와줘요!",
     chooseProf: "선생님을 골라 보세요", madameName: "여자 선생님", madameSub: "가상",
     monsieurName: "남자 선생님", monsieurSub: "가상", back: "‹ 뒤로",
@@ -1234,7 +1323,7 @@ const I18N = {
     quizDifficultyHarder: "다음 퀴즈는 조금 더 어려워질 거예요!",
   },
   'id-ID': {
-    accountBtnDefault: "Masuk ke akunmu", appTitle: "Kelas Virtual",
+    accountBtnDefault: "Masuk ke akunmu", appTitle: "Prof Aide IA",
     appSubtitle: "Guru virtualmu membantumu memahami tanpa langsung memberi jawaban!",
     chooseProf: "PILIH GURUMU", madameName: "Ibu Guru", madameSub: "Virtual",
     monsieurName: "Bapak Guru", monsieurSub: "Virtual", back: "‹ Kembali",
@@ -1310,6 +1399,110 @@ const I18N = {
 // Alias de secours pour d'eventuelles langues sans traduction complete (vide : les 15 langues
 // proposees ont toutes un bloc complet). Mecanisme conserve pour de futurs ajouts.
 const I18N_FALLBACK_ALIAS = {};
+
+// Textes de la creation de compte, dans les 15 langues (meme ordre que ACCOUNT_I18N_KEYS)
+const ACCOUNT_I18N_KEYS = ['accountLoginBtn', 'accountCodeLoginPlaceholder', 'accountNoAccount', 'accountCreateBtn', 'accountCreateHeading',
+  'accountNameLabel', 'accountCodeLabel', 'ruleLen', 'ruleLetter', 'ruleDigit', 'accountCodeConfirmPlaceholder', 'codesMatch',
+  'accountAgeLabel', 'accountGradeLabel', 'accountGradeChoose', 'accountGenderLabel', 'genderGirl', 'genderBoy', 'genderSecret',
+  'accountRegisterBtn', 'accountHaveAccount', 'errName', 'errNameTaken', 'errCodeWeak', 'errCodeMismatch', 'errAge', 'errGrade',
+  'errGender', 'errMissing', 'errLogin', 'errTooMany', 'errServer'];
+const ACCOUNT_I18N = {
+  'fr-FR': ['Se connecter', 'Ton code secret', 'Pas encore de compte ?', '✨ Créer un compte', '✨ Créer ton compte',
+    'Ton prénom', 'Ton code secret', 'Au moins 6 caractères', 'Au moins une lettre', 'Au moins un chiffre', 'Retape ton code secret', '✅ Les deux codes sont pareils',
+    'Ton âge', 'Ta classe', 'Choisis…', 'Tu es :', '👧 Une fille', '👦 Un garçon', '🤐 Je préfère ne pas le dire',
+    'Créer mon compte', "J'ai déjà un compte", 'Écris un vrai prénom (2 à 16 lettres).', 'Ce prénom est déjà pris. Ajoute une lettre ou ton initiale (ex : Léa B).',
+    "Ton code n'est pas assez sécurisé : 6 caractères minimum, avec des lettres ET des chiffres.", 'Les deux codes ne sont pas pareils.', 'Écris ton âge (entre 4 et 99 ans).', 'Choisis ta classe.',
+    'Choisis : fille, garçon ou je préfère ne pas le dire.', 'Écris ton prénom et ton code secret.', 'Prénom ou code secret incorrect.', 'Trop d’essais. Attends une minute.', 'Connexion impossible, réessaie.'],
+  'en-US': ['Log in', 'Your secret code', 'No account yet?', '✨ Create an account', '✨ Create your account',
+    'Your first name', 'Your secret code', 'At least 6 characters', 'At least one letter', 'At least one number', 'Type your secret code again', '✅ Both codes match',
+    'Your age', 'Your grade', 'Choose…', 'You are:', '👧 A girl', '👦 A boy', '🤐 I prefer not to say',
+    'Create my account', 'I already have an account', 'Type a real first name (2 to 16 letters).', 'This name is already taken. Add a letter or your initial (e.g. Lea B).',
+    'Your code is not secure enough: at least 6 characters, with letters AND numbers.', 'The two codes are not the same.', 'Type your age (between 4 and 99).', 'Choose your grade.',
+    'Choose: girl, boy or I prefer not to say.', 'Type your first name and secret code.', 'Wrong first name or secret code.', 'Too many tries. Wait a minute.', 'Connection failed, try again.'],
+  'zh-CN': ['登录', '你的密码', '还没有账户？', '✨ 创建账户', '✨ 创建你的账户',
+    '你的名字', '你的密码', '至少6个字符', '至少一个字母', '至少一个数字', '再输入一次密码', '✅ 两次密码一致',
+    '你的年龄', '你的年级', '请选择…', '你是：', '👧 女孩', '👦 男孩', '🤐 我不想说',
+    '创建我的账户', '我已经有账户了', '请输入真实的名字（2到16个字）。', '这个名字已被使用。请加一个字母或你的姓氏首字母。',
+    '密码不够安全：至少6个字符，要有字母和数字。', '两次输入的密码不一样。', '请输入你的年龄（4到99岁）。', '请选择你的年级。',
+    '请选择：女孩、男孩或我不想说。', '请输入名字和密码。', '名字或密码错误。', '尝试次数太多，请等一分钟。', '连接失败，请重试。'],
+  'hi-IN': ['लॉग इन करें', 'तुम्हारा गुप्त कोड', 'अभी तक खाता नहीं है?', '✨ खाता बनाएं', '✨ अपना खाता बनाओ',
+    'तुम्हारा नाम', 'तुम्हारा गुप्त कोड', 'कम से कम 6 अक्षर', 'कम से कम एक अक्षर', 'कम से कम एक अंक', 'गुप्त कोड फिर से लिखो', '✅ दोनों कोड एक जैसे हैं',
+    'तुम्हारी उम्र', 'तुम्हारी कक्षा', 'चुनो…', 'तुम हो:', '👧 लड़की', '👦 लड़का', '🤐 मैं नहीं बताना चाहता/चाहती',
+    'मेरा खाता बनाओ', 'मेरा पहले से खाता है', 'असली नाम लिखो (2 से 16 अक्षर)।', 'यह नाम पहले से लिया गया है। एक अक्षर या अपना उपनाम जोड़ो।',
+    'तुम्हारा कोड सुरक्षित नहीं है: कम से कम 6 अक्षर, अक्षर और अंक दोनों।', 'दोनों कोड एक जैसे नहीं हैं।', 'अपनी उम्र लिखो (4 से 99)।', 'अपनी कक्षा चुनो।',
+    'चुनो: लड़की, लड़का या नहीं बताना।', 'अपना नाम और गुप्त कोड लिखो।', 'नाम या गुप्त कोड गलत है।', 'बहुत ज़्यादा कोशिशें। एक मिनट रुको।', 'कनेक्शन नहीं हुआ, फिर से कोशिश करो।'],
+  'es-ES': ['Iniciar sesión', 'Tu código secreto', '¿Aún no tienes cuenta?', '✨ Crear una cuenta', '✨ Crea tu cuenta',
+    'Tu nombre', 'Tu código secreto', 'Al menos 6 caracteres', 'Al menos una letra', 'Al menos un número', 'Vuelve a escribir tu código', '✅ Los dos códigos coinciden',
+    'Tu edad', 'Tu curso', 'Elige…', 'Eres:', '👧 Una chica', '👦 Un chico', '🤐 Prefiero no decirlo',
+    'Crear mi cuenta', 'Ya tengo una cuenta', 'Escribe un nombre real (de 2 a 16 letras).', 'Este nombre ya está cogido. Añade una letra o tu inicial (ej.: Lea B).',
+    'Tu código no es bastante seguro: mínimo 6 caracteres, con letras Y números.', 'Los dos códigos no son iguales.', 'Escribe tu edad (entre 4 y 99).', 'Elige tu curso.',
+    'Elige: chica, chico o prefiero no decirlo.', 'Escribe tu nombre y tu código secreto.', 'Nombre o código secreto incorrecto.', 'Demasiados intentos. Espera un minuto.', 'Conexión imposible, inténtalo de nuevo.'],
+  'ar-SA': ['تسجيل الدخول', 'رمزك السري', 'ليس لديك حساب بعد؟', '✨ إنشاء حساب', '✨ أنشئ حسابك',
+    'اسمك', 'رمزك السري', '6 أحرف على الأقل', 'حرف واحد على الأقل', 'رقم واحد على الأقل', 'أعد كتابة رمزك السري', '✅ الرمزان متطابقان',
+    'عمرك', 'صفك', 'اختر…', 'أنت:', '👧 بنت', '👦 ولد', '🤐 أفضل عدم القول',
+    'إنشاء حسابي', 'لدي حساب بالفعل', 'اكتب اسمًا حقيقيًا (من 2 إلى 16 حرفًا).', 'هذا الاسم مستخدم. أضف حرفًا أو الحرف الأول من اسم عائلتك.',
+    'رمزك غير آمن بما يكفي: 6 أحرف على الأقل، مع أحرف وأرقام.', 'الرمزان غير متطابقين.', 'اكتب عمرك (بين 4 و99).', 'اختر صفك.',
+    'اختر: بنت، ولد أو أفضل عدم القول.', 'اكتب اسمك ورمزك السري.', 'الاسم أو الرمز السري غير صحيح.', 'محاولات كثيرة. انتظر دقيقة.', 'تعذر الاتصال، حاول مرة أخرى.'],
+  'bn-BD': ['লগ ইন', 'তোমার গোপন কোড', 'এখনো অ্যাকাউন্ট নেই?', '✨ অ্যাকাউন্ট তৈরি করো', '✨ তোমার অ্যাকাউন্ট তৈরি করো',
+    'তোমার নাম', 'তোমার গোপন কোড', 'অন্তত ৬টি অক্ষর', 'অন্তত একটি বর্ণ', 'অন্তত একটি সংখ্যা', 'গোপন কোড আবার লেখো', '✅ দুটি কোড মিলেছে',
+    'তোমার বয়স', 'তোমার শ্রেণি', 'বেছে নাও…', 'তুমি:', '👧 মেয়ে', '👦 ছেলে', '🤐 বলতে চাই না',
+    'আমার অ্যাকাউন্ট তৈরি করো', 'আমার আগে থেকেই অ্যাকাউন্ট আছে', 'আসল নাম লেখো (২ থেকে ১৬ অক্ষর)।', 'এই নাম আগেই নেওয়া হয়েছে। একটি অক্ষর বা পদবির আদ্যক্ষর যোগ করো।',
+    'তোমার কোড যথেষ্ট নিরাপদ নয়: অন্তত ৬টি অক্ষর, বর্ণ ও সংখ্যা দুটোই।', 'দুটি কোড এক নয়।', 'তোমার বয়স লেখো (৪ থেকে ৯৯)।', 'তোমার শ্রেণি বেছে নাও।',
+    'বেছে নাও: মেয়ে, ছেলে বা বলতে চাই না।', 'তোমার নাম ও গোপন কোড লেখো।', 'নাম বা গোপন কোড ভুল।', 'অনেক বার চেষ্টা হয়েছে। এক মিনিট অপেক্ষা করো।', 'সংযোগ হয়নি, আবার চেষ্টা করো।'],
+  'pt-PT': ['Iniciar sessão', 'O teu código secreto', 'Ainda não tens conta?', '✨ Criar uma conta', '✨ Cria a tua conta',
+    'O teu nome', 'O teu código secreto', 'Pelo menos 6 caracteres', 'Pelo menos uma letra', 'Pelo menos um número', 'Escreve outra vez o teu código', '✅ Os dois códigos são iguais',
+    'A tua idade', 'O teu ano', 'Escolhe…', 'És:', '👧 Uma rapariga', '👦 Um rapaz', '🤐 Prefiro não dizer',
+    'Criar a minha conta', 'Já tenho uma conta', 'Escreve um nome verdadeiro (2 a 16 letras).', 'Este nome já está ocupado. Junta uma letra ou a tua inicial (ex.: Lea B).',
+    'O teu código não é seguro: mínimo 6 caracteres, com letras E números.', 'Os dois códigos não são iguais.', 'Escreve a tua idade (entre 4 e 99).', 'Escolhe o teu ano.',
+    'Escolhe: rapariga, rapaz ou prefiro não dizer.', 'Escreve o teu nome e o teu código secreto.', 'Nome ou código secreto incorreto.', 'Demasiadas tentativas. Espera um minuto.', 'Ligação impossível, tenta outra vez.'],
+  'ru-RU': ['Войти', 'Твой секретный код', 'Ещё нет аккаунта?', '✨ Создать аккаунт', '✨ Создай свой аккаунт',
+    'Твоё имя', 'Твой секретный код', 'Не меньше 6 символов', 'Хотя бы одна буква', 'Хотя бы одна цифра', 'Повтори секретный код', '✅ Коды совпадают',
+    'Твой возраст', 'Твой класс', 'Выбери…', 'Ты:', '👧 Девочка', '👦 Мальчик', '🤐 Не хочу говорить',
+    'Создать аккаунт', 'У меня уже есть аккаунт', 'Напиши настоящее имя (от 2 до 16 букв).', 'Это имя уже занято. Добавь букву или инициал фамилии.',
+    'Код недостаточно надёжный: не меньше 6 символов, буквы И цифры.', 'Коды не совпадают.', 'Напиши свой возраст (от 4 до 99).', 'Выбери свой класс.',
+    'Выбери: девочка, мальчик или не хочу говорить.', 'Напиши имя и секретный код.', 'Неверное имя или секретный код.', 'Слишком много попыток. Подожди минуту.', 'Не удалось подключиться, попробуй ещё раз.'],
+  'ur-PK': ['لاگ ان', 'آپ کا خفیہ کوڈ', 'ابھی تک اکاؤنٹ نہیں؟', '✨ اکاؤنٹ بنائیں', '✨ اپنا اکاؤنٹ بنائیں',
+    'آپ کا نام', 'آپ کا خفیہ کوڈ', 'کم از کم 6 حروف', 'کم از کم ایک حرف', 'کم از کم ایک ہندسہ', 'خفیہ کوڈ دوبارہ لکھیں', '✅ دونوں کوڈ ایک جیسے ہیں',
+    'آپ کی عمر', 'آپ کی جماعت', 'منتخب کریں…', 'آپ ہیں:', '👧 لڑکی', '👦 لڑکا', '🤐 میں بتانا نہیں چاہتا/چاہتی',
+    'میرا اکاؤنٹ بنائیں', 'میرا پہلے سے اکاؤنٹ ہے', 'اصلی نام لکھیں (2 سے 16 حروف)۔', 'یہ نام پہلے سے لیا جا چکا ہے۔ ایک حرف یا اپنا ابتدائی حرف شامل کریں۔',
+    'آپ کا کوڈ کافی محفوظ نہیں: کم از کم 6 حروف، حروف اور ہندسے دونوں۔', 'دونوں کوڈ ایک جیسے نہیں ہیں۔', 'اپنی عمر لکھیں (4 سے 99)۔', 'اپنی جماعت منتخب کریں۔',
+    'منتخب کریں: لڑکی، لڑکا یا نہیں بتانا۔', 'اپنا نام اور خفیہ کوڈ لکھیں۔', 'نام یا خفیہ کوڈ غلط ہے۔', 'بہت زیادہ کوششیں۔ ایک منٹ انتظار کریں۔', 'رابطہ نہیں ہوا، دوبارہ کوشش کریں۔'],
+  'id-ID': ['Masuk', 'Kode rahasiamu', 'Belum punya akun?', '✨ Buat akun', '✨ Buat akunmu',
+    'Nama depanmu', 'Kode rahasiamu', 'Minimal 6 karakter', 'Minimal satu huruf', 'Minimal satu angka', 'Ketik ulang kode rahasiamu', '✅ Kedua kode sama',
+    'Umurmu', 'Kelasmu', 'Pilih…', 'Kamu:', '👧 Perempuan', '👦 Laki-laki', '🤐 Aku memilih tidak menyebutkan',
+    'Buat akunku', 'Aku sudah punya akun', 'Tulis nama asli (2 sampai 16 huruf).', 'Nama ini sudah dipakai. Tambahkan huruf atau inisialmu.',
+    'Kodemu kurang aman: minimal 6 karakter, dengan huruf DAN angka.', 'Kedua kode tidak sama.', 'Tulis umurmu (antara 4 dan 99).', 'Pilih kelasmu.',
+    'Pilih: perempuan, laki-laki, atau tidak menyebutkan.', 'Tulis nama dan kode rahasiamu.', 'Nama atau kode rahasia salah.', 'Terlalu banyak percobaan. Tunggu sebentar.', 'Gagal terhubung, coba lagi.'],
+  'de-DE': ['Einloggen', 'Dein Geheimcode', 'Noch kein Konto?', '✨ Konto erstellen', '✨ Erstelle dein Konto',
+    'Dein Vorname', 'Dein Geheimcode', 'Mindestens 6 Zeichen', 'Mindestens ein Buchstabe', 'Mindestens eine Zahl', 'Gib deinen Geheimcode noch einmal ein', '✅ Beide Codes sind gleich',
+    'Dein Alter', 'Deine Klasse', 'Wähle…', 'Du bist:', '👧 Ein Mädchen', '👦 Ein Junge', '🤐 Möchte ich nicht sagen',
+    'Mein Konto erstellen', 'Ich habe schon ein Konto', 'Schreib einen echten Vornamen (2 bis 16 Buchstaben).', 'Dieser Name ist schon vergeben. Füge einen Buchstaben oder deinen Anfangsbuchstaben hinzu.',
+    'Dein Code ist nicht sicher genug: mindestens 6 Zeichen, mit Buchstaben UND Zahlen.', 'Die beiden Codes sind nicht gleich.', 'Gib dein Alter ein (zwischen 4 und 99).', 'Wähle deine Klasse.',
+    'Wähle: Mädchen, Junge oder möchte ich nicht sagen.', 'Gib deinen Vornamen und Geheimcode ein.', 'Vorname oder Geheimcode falsch.', 'Zu viele Versuche. Warte eine Minute.', 'Verbindung fehlgeschlagen, versuch es nochmal.'],
+  'ja-JP': ['ログイン', 'ひみつのコード', 'まだアカウントがない？', '✨ アカウントを作る', '✨ アカウントを作ろう',
+    'あなたの名前', 'ひみつのコード', '6文字以上', '文字を1つ以上', '数字を1つ以上', 'もう一度コードを入力', '✅ 2つのコードが同じです',
+    '年齢', '学年', '選んでね…', 'あなたは：', '👧 女の子', '👦 男の子', '🤐 言いたくない',
+    'アカウントを作成', 'もうアカウントがある', '本当の名前を書いてね（2〜16文字）。', 'この名前はもう使われています。文字やイニシャルを足してね。',
+    'コードが安全ではありません：6文字以上で、文字と数字を両方入れてね。', '2つのコードが同じではありません。', '年齢を入力してね（4〜99歳）。', '学年を選んでね。',
+    '女の子・男の子・言いたくない から選んでね。', '名前とひみつのコードを入力してね。', '名前かコードがちがいます。', '試しすぎです。1分待ってね。', '接続できませんでした。もう一度試してね。'],
+  'ko-KR': ['로그인', '비밀 코드', '아직 계정이 없나요?', '✨ 계정 만들기', '✨ 계정을 만들어 보세요',
+    '이름', '비밀 코드', '6자 이상', '글자 1개 이상', '숫자 1개 이상', '비밀 코드를 다시 입력하세요', '✅ 두 코드가 같아요',
+    '나이', '학년', '선택하세요…', '나는:', '👧 여자아이', '👦 남자아이', '🤐 말하고 싶지 않아요',
+    '계정 만들기', '이미 계정이 있어요', '진짜 이름을 써 주세요 (2~16자).', '이미 사용 중인 이름이에요. 글자나 성의 첫 글자를 추가하세요.',
+    '코드가 충분히 안전하지 않아요: 6자 이상, 글자와 숫자를 모두 넣으세요.', '두 코드가 같지 않아요.', '나이를 입력하세요 (4~99세).', '학년을 선택하세요.',
+    '여자아이, 남자아이, 말하고 싶지 않아요 중에서 고르세요.', '이름과 비밀 코드를 입력하세요.', '이름 또는 비밀 코드가 틀렸어요.', '시도가 너무 많아요. 1분 기다리세요.', '연결할 수 없어요. 다시 시도하세요.'],
+  'it-IT': ['Accedi', 'Il tuo codice segreto', 'Non hai ancora un account?', '✨ Crea un account', '✨ Crea il tuo account',
+    'Il tuo nome', 'Il tuo codice segreto', 'Almeno 6 caratteri', 'Almeno una lettera', 'Almeno un numero', 'Riscrivi il tuo codice segreto', '✅ I due codici sono uguali',
+    'La tua età', 'La tua classe', 'Scegli…', 'Sei:', '👧 Una ragazza', '👦 Un ragazzo', '🤐 Preferisco non dirlo',
+    'Crea il mio account', 'Ho già un account', 'Scrivi un nome vero (da 2 a 16 lettere).', 'Questo nome è già preso. Aggiungi una lettera o la tua iniziale (es: Lea B).',
+    'Il tuo codice non è abbastanza sicuro: almeno 6 caratteri, con lettere E numeri.', 'I due codici non sono uguali.', 'Scrivi la tua età (tra 4 e 99).', 'Scegli la tua classe.',
+    'Scegli: ragazza, ragazzo o preferisco non dirlo.', 'Scrivi il tuo nome e il tuo codice segreto.', 'Nome o codice segreto sbagliato.', 'Troppi tentativi. Aspetta un minuto.', 'Connessione impossibile, riprova.'],
+};
+Object.keys(ACCOUNT_I18N).forEach((lang) => {
+  if (!I18N[lang]) return;
+  ACCOUNT_I18N_KEYS.forEach((key, i) => { I18N[lang][key] = ACCOUNT_I18N[lang][i]; });
+});
+
 
 function getUiStrings(langCode) {
   if (I18N[langCode]) return I18N[langCode];
@@ -2568,6 +2761,18 @@ function gameKeyUp(e) { gameKeysPressed.delete(e.key); }
 window.addEventListener('keydown', gameKeyDown);
 window.addEventListener('keyup', gameKeyUp);
 
+// Manette tactile : chaque bouton fait comme la touche du clavier correspondante
+document.querySelectorAll('.game-touch-btn').forEach((btn) => {
+  const key = btn.dataset.key;
+  const press = (e) => { e.preventDefault(); gameKeysPressed.add(key); btn.classList.add('pressed'); };
+  const release = (e) => { e.preventDefault(); gameKeysPressed.delete(key); btn.classList.remove('pressed'); };
+  btn.addEventListener('pointerdown', press);
+  btn.addEventListener('pointerup', release);
+  btn.addEventListener('pointercancel', release);
+  btn.addEventListener('pointerleave', release);
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
+});
+
 function gameCanvasPos(e) {
   const rect = gameCanvas.getBoundingClientRect();
   return {
@@ -2600,6 +2805,7 @@ function startGame(key, tier) {
   gameFrame = 0;
   gameTimeLeft = chosenTier.duration;
   gameKeysPressed.clear();
+  gamePlayScreen.dataset.game = key;
   gamePlayTitle.textContent = GAMES.find(g => g.key === key).title;
   gamePlayTimer.textContent = gameTimeLeft;
   gameEndOverlay.style.display = 'none';
