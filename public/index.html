@@ -245,6 +245,7 @@
       <div class="quiz-result" id="quizResult" style="display:none">
         <div class="quiz-result-title" data-i18n="quizResultTitle">🎉 Quiz terminé !</div>
         <div class="quiz-result-score" id="quizResultScore"></div>
+        <div class="quiz-brain-note" id="quizBrainNote"></div>
         <div class="quiz-result-actions">
           <button id="quizRestartBtn" class="quiz-result-btn" data-i18n="quizRestartBtn">🔁 Recommencer</button>
           <button id="quizBackBtn" class="quiz-result-btn quiz-back-btn" data-i18n="back">‹ Retour</button>
@@ -378,6 +379,7 @@
         <div id="accountLoggedInView" style="display:none">
           <p class="account-text"><span data-i18n="accountLoggedAs">Connecté en tant que</span> <strong id="accountLoggedName"></strong></p>
           <p class="account-text">⭐ <span id="accountLoggedStars">0</span> <span data-i18n="accountStarsSaved">étoiles sauvegardées</span></p>
+          <div class="account-brain" id="accountBrain"></div>
           <button id="accountLogoutBtn" class="quiz-result-btn modal-back-btn" data-i18n="accountLogoutBtn">Se déconnecter</button>
         </div>
       </div>
@@ -394,6 +396,7 @@
     </div>
   </div>
 
+  <script src="brain.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

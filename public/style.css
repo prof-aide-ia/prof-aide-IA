@@ -1554,3 +1554,30 @@ canvas#tableau {
   font-size: 1.3em;
   font-weight: 800;
 }
+
+/* ============ Mini-IA de progression ============ */
+.quiz-brain-note {
+  max-width: 520px;
+  margin: -10px auto 22px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.14);
+  color: white;
+  font-size: 0.95em;
+  line-height: 1.4;
+}
+.quiz-brain-note:empty { display: none; }
+.account-brain { margin: 8px 0 18px; }
+.account-brain-title { font-weight: 700; color: var(--accent-dark); margin: 0 0 10px; }
+.account-brain-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 2fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9em;
+  margin-bottom: 8px;
+  color: #4a4a5a;
+}
+.account-brain-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-brain-bar { height: 10px; border-radius: 6px; background: #ece7ff; overflow: hidden; }
+.account-brain-bar div { height: 100%; border-radius: 6px; background: linear-gradient(90deg, #ff9a3c, #7b5cff); }

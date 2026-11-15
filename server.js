@@ -6,7 +6,8 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.ANTHROPIC_API_KEY;
-const MODEL = 'claude-sonnet-5';
+// Claude Haiku 5.5 : modele rapide et beaucoup moins cher, suffisant pour des reponses courtes
+const MODEL = 'claude-haiku-5-5';
 const ACCOUNTS_DIR = path.join(__dirname, 'accounts');
 
 if (!fs.existsSync(ACCOUNTS_DIR)) fs.mkdirSync(ACCOUNTS_DIR, { recursive: true });
@@ -54,6 +55,8 @@ async function callClaude(system, messages, maxTokens) {
     body: JSON.stringify({
       model: MODEL,
       max_tokens: maxTokens,
+      // Reponses courtes en JSON : pas besoin de reflexion, ca evite aussi qu'elle mange les tokens
+      thinking: { type: 'disabled' },
       system,
       messages,
     }),
@@ -357,7 +360,7 @@ function checkLogin(name, code) {
 }
 
 function publicAccount(a) {
-  return { name: a.name, stars: a.stars || 0, age: a.age, grade: a.grade, gender: a.gender };
+  return { name: a.name, stars: a.stars || 0, age: a.age, grade: a.grade, gender: a.gender, brain: a.brain || null };
 }
 
 // Limite les essais de connexion pour empecher de deviner un code
@@ -419,6 +422,29 @@ app.post('/api/account/stars', (req, res) => {
     account.gains = recent;
   }
   account.stars = newStars;
+  writeAccount(account);
+  res.json({ ok: true });
+});
+
+// Ce que la mini-IA de progression a appris sur l'eleve (niveau estime par matiere)
+function cleanBrain(brain) {
+  if (!brain || typeof brain !== 'object' || !brain.subjects || typeof brain.subjects !== 'object') return null;
+  const subjects = {};
+  for (const [name, s] of Object.entries(brain.subjects).slice(0, 80)) {
+    if (typeof name !== 'string' || name.length > 60 || !s) continue;
+    if (!Number.isFinite(s.theta) || !Number.isFinite(s.n)) continue;
+    subjects[name] = { theta: Math.max(-4, Math.min(4, s.theta)), n: Math.max(0, Math.min(100000, Math.round(s.n))) };
+  }
+  return { subjects };
+}
+
+app.post('/api/account/brain', (req, res) => {
+  const { name, code, brain } = req.body || {};
+  const account = checkLogin(name, code);
+  if (!account) return res.status(401).json({ error: 'Compte introuvable' });
+  const clean = cleanBrain(brain);
+  if (!clean) return res.status(400).json({ error: 'Donnees invalides' });
+  account.brain = clean;
   writeAccount(account);
   res.json({ ok: true });
 });

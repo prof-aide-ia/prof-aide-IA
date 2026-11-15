@@ -259,6 +259,7 @@ const quizEvalList = document.getElementById('quizEvalList');
 const quizEvalValidateBtn = document.getElementById('quizEvalValidateBtn');
 const quizResult = document.getElementById('quizResult');
 const quizResultScore = document.getElementById('quizResultScore');
+const quizBrainNote = document.getElementById('quizBrainNote');
 const quizRestartBtn = document.getElementById('quizRestartBtn');
 const quizBackBtn = document.getElementById('quizBackBtn');
 
@@ -310,6 +311,7 @@ const accountError = document.getElementById('accountError');
 const accountLoginBtn = document.getElementById('accountLoginBtn');
 const accountLoggedName = document.getElementById('accountLoggedName');
 const accountLoggedStars = document.getElementById('accountLoggedStars');
+const accountBrain = document.getElementById('accountBrain');
 const accountLogoutBtn = document.getElementById('accountLogoutBtn');
 
 const languageOpenBtn = document.getElementById('languageOpenBtn');
@@ -414,6 +416,7 @@ function openAccountScreen() {
     showAccountView('logged');
     accountLoggedName.textContent = villeAccount.name;
     accountLoggedStars.textContent = stars;
+    renderAccountBrain();
   } else {
     showAccountView('login');
     accountNameInput.value = '';
@@ -466,6 +469,9 @@ regGender.addEventListener('click', (e) => {
 
 function onAccountReady(account, code) {
   villeAccount = { ...account, code };
+  // Le compte garde ce que la mini-IA sait ; un nouveau compte recupere ce qu'elle a appris sans compte
+  if (account.brain) miniIA = MiniIA.create(account.brain);
+  else saveBrain();
   stars = villeAccount.stars;
   updateStarsDisplay();
   accountBtnLabel.textContent = villeAccount.name;
@@ -518,6 +524,7 @@ async function registerAccount() {
 
 function logoutAccount() {
   villeAccount = null;
+  miniIA = MiniIA.create(loadGuestBrain());
   stars = 0;
   updateStarsDisplay();
   accountBtnLabel.textContent = t('accountBtnDefault');
@@ -1400,6 +1407,31 @@ const I18N = {
 // proposees ont toutes un bloc complet). Mecanisme conserve pour de futurs ajouts.
 const I18N_FALLBACK_ALIAS = {};
 
+// Textes de la mini-IA de progression, dans les 15 langues (meme ordre que BRAIN_I18N_KEYS)
+const BRAIN_I18N_KEYS = ['brainLevel', 'brainLearning', 'brainAdvice', 'brainAccountTitle', 'brainNoData'];
+const BRAIN_I18N = {
+  'fr-FR': ['🧠 Ta mini-IA pense que ton niveau en {subject} est de {pct} %.', '🧠 Ta mini-IA apprend encore à te connaître en {subject}.', 'Conseil : révise « {subject} », c\'est là que tu as le plus de mal.', '🧠 Ce que ta mini-IA a appris sur toi', 'Ta mini-IA ne te connaît pas encore. Fais quelques quiz !'],
+  'en-US': ['🧠 Your mini-AI thinks your level in {subject} is {pct}%.', '🧠 Your mini-AI is still getting to know you in {subject}.', 'Tip: review "{subject}", that\'s where you struggle the most.', '🧠 What your mini-AI has learned about you', 'Your mini-AI doesn\'t know you yet. Take a few quizzes!'],
+  'zh-CN': ['🧠 你的迷你AI认为你在{subject}的水平是 {pct}%。', '🧠 你的迷你AI还在了解你在{subject}的水平。', '建议：复习"{subject}"，这是你最薄弱的地方。', '🧠 你的迷你AI对你的了解', '你的迷你AI还不了解你。做几个测验吧！'],
+  'hi-IN': ['🧠 तुम्हारी मिनी-AI के अनुसार {subject} में तुम्हारा स्तर {pct}% है।', '🧠 तुम्हारी मिनी-AI अभी {subject} में तुम्हें जान रही है।', 'सलाह: "{subject}" दोहराओ, इसमें तुम्हें सबसे ज़्यादा मुश्किल होती है।', '🧠 तुम्हारी मिनी-AI ने तुम्हारे बारे में क्या सीखा', 'तुम्हारी मिनी-AI अभी तुम्हें नहीं जानती। कुछ क्विज़ करो!'],
+  'es-ES': ['🧠 Tu mini-IA cree que tu nivel en {subject} es del {pct} %.', '🧠 Tu mini-IA todavía te está conociendo en {subject}.', 'Consejo: repasa «{subject}», es donde más te cuesta.', '🧠 Lo que tu mini-IA ha aprendido sobre ti', 'Tu mini-IA aún no te conoce. ¡Haz algunos quiz!'],
+  'ar-SA': ['🧠 يعتقد ذكاؤك الاصطناعي الصغير أن مستواك في {subject} هو {pct}٪.', '🧠 ما زال ذكاؤك الاصطناعي الصغير يتعرف عليك في {subject}.', 'نصيحة: راجع «{subject}»، فهنا تجد أكبر صعوبة.', '🧠 ما تعلمه ذكاؤك الاصطناعي الصغير عنك', 'ذكاؤك الاصطناعي الصغير لا يعرفك بعد. قم ببعض الاختبارات!'],
+  'bn-BD': ['🧠 তোমার মিনি-AI মনে করে {subject}-এ তোমার স্তর {pct}%।', '🧠 তোমার মিনি-AI এখনো {subject}-এ তোমাকে চিনছে।', 'পরামর্শ: "{subject}" আবার পড়ো, এখানেই তোমার সবচেয়ে বেশি অসুবিধা।', '🧠 তোমার মিনি-AI তোমার সম্পর্কে যা শিখেছে', 'তোমার মিনি-AI এখনো তোমাকে চেনে না। কয়েকটা কুইজ করো!'],
+  'pt-PT': ['🧠 A tua mini-IA acha que o teu nível em {subject} é de {pct} %.', '🧠 A tua mini-IA ainda está a conhecer-te em {subject}.', 'Conselho: revê «{subject}», é aí que tens mais dificuldade.', '🧠 O que a tua mini-IA aprendeu sobre ti', 'A tua mini-IA ainda não te conhece. Faz alguns quizzes!'],
+  'ru-RU': ['🧠 Твой мини-ИИ считает, что твой уровень по теме «{subject}» — {pct} %.', '🧠 Твой мини-ИИ ещё узнаёт тебя по теме «{subject}».', 'Совет: повтори «{subject}», здесь тебе труднее всего.', '🧠 Что твой мини-ИИ узнал о тебе', 'Твой мини-ИИ тебя ещё не знает. Пройди несколько тестов!'],
+  'ur-PK': ['🧠 آپ کی منی-AI کے مطابق {subject} میں آپ کی سطح {pct}% ہے۔', '🧠 آپ کی منی-AI ابھی {subject} میں آپ کو جان رہی ہے۔', 'مشورہ: "{subject}" دہرائیں، اس میں آپ کو سب سے زیادہ مشکل ہوتی ہے۔', '🧠 آپ کی منی-AI نے آپ کے بارے میں کیا سیکھا', 'آپ کی منی-AI ابھی آپ کو نہیں جانتی۔ کچھ کوئز کریں!'],
+  'id-ID': ['🧠 Mini-AI-mu mengira levelmu di {subject} adalah {pct}%.', '🧠 Mini-AI-mu masih mengenalmu di {subject}.', 'Saran: ulangi "{subject}", di situ kamu paling kesulitan.', '🧠 Apa yang dipelajari mini-AI-mu tentangmu', 'Mini-AI-mu belum mengenalmu. Kerjakan beberapa kuis!'],
+  'de-DE': ['🧠 Deine Mini-KI schätzt dein Niveau in {subject} auf {pct} %.', '🧠 Deine Mini-KI lernt dich in {subject} noch kennen.', 'Tipp: Wiederhole „{subject}", dort hast du die meisten Schwierigkeiten.', '🧠 Was deine Mini-KI über dich gelernt hat', 'Deine Mini-KI kennt dich noch nicht. Mach ein paar Quiz!'],
+  'ja-JP': ['🧠 ミニAIは、{subject}のあなたのレベルを {pct}% だと考えています。', '🧠 ミニAIは{subject}でのあなたをまだ学んでいるところです。', 'アドバイス：「{subject}」を復習しよう。いちばん苦手なところだよ。', '🧠 ミニAIがあなたについて学んだこと', 'ミニAIはまだあなたのことを知りません。クイズをいくつかやってみよう！'],
+  'ko-KR': ['🧠 미니 AI는 {subject} 실력을 {pct}%로 보고 있어요.', '🧠 미니 AI가 아직 {subject}에서 당신을 알아가는 중이에요.', '조언: "{subject}"를 복습하세요. 가장 어려워하는 부분이에요.', '🧠 미니 AI가 당신에 대해 배운 것', '미니 AI가 아직 당신을 잘 몰라요. 퀴즈를 몇 개 풀어 보세요!'],
+  'it-IT': ['🧠 La tua mini-IA pensa che il tuo livello in {subject} sia del {pct} %.', '🧠 La tua mini-IA sta ancora imparando a conoscerti in {subject}.', 'Consiglio: ripassa «{subject}», è lì che fai più fatica.', '🧠 Cosa ha imparato su di te la tua mini-IA', 'La tua mini-IA non ti conosce ancora. Fai qualche quiz!'],
+};
+Object.keys(BRAIN_I18N).forEach((lang) => {
+  if (!I18N[lang]) return;
+  BRAIN_I18N_KEYS.forEach((key, i) => { I18N[lang][key] = BRAIN_I18N[lang][i]; });
+});
+
+
 // Textes de la creation de compte, dans les 15 langues (meme ordre que ACCOUNT_I18N_KEYS)
 const ACCOUNT_I18N_KEYS = ['accountLoginBtn', 'accountCodeLoginPlaceholder', 'accountNoAccount', 'accountCreateBtn', 'accountCreateHeading',
   'accountNameLabel', 'accountCodeLabel', 'ruleLen', 'ruleLetter', 'ruleDigit', 'accountCodeConfirmPlaceholder', 'codesMatch',
@@ -2079,18 +2111,70 @@ micBtn.addEventListener('click', () => {
 // ============ Quiz (3 modes : QCM classique, evaluation complete, reponses ecrites) ============
 const QUIZ_TIME_PER_QUESTION = 20;
 
-// Difficulte adaptative : 5/5 -> plus dur la prochaine fois, 20% ou moins -> plus facile,
-// sinon on ne change rien. Persiste tant qu'on reste sur la page (pas par matiere).
-const QUIZ_LEVELS = ['facile', 'normal', 'difficile'];
+// Difficulte adaptative : la mini-IA de progression (brain.js) apprend le niveau de l'eleve dans
+// chaque matiere a chaque reponse, et choisit la difficulte du prochain quiz. Sans compte, ce
+// qu'elle sait reste dans le navigateur ; avec un compte, elle est sauvegardee avec les etoiles.
 let quizDifficulty = 'normal';
 const QUIZ_LEVEL_LABELS = { facile: 'Facile', normal: 'Normal', difficile: 'Difficile' };
+const BRAIN_STORAGE_KEY = 'profAideIA.miniIA';
 
-function adjustQuizDifficulty(correctCount, total) {
-  let idx = QUIZ_LEVELS.indexOf(quizDifficulty);
-  const ratio = total > 0 ? correctCount / total : 0;
-  if (correctCount === total) idx = Math.min(idx + 1, QUIZ_LEVELS.length - 1);
-  else if (ratio <= 0.2) idx = Math.max(idx - 1, 0);
-  quizDifficulty = QUIZ_LEVELS[idx];
+function loadGuestBrain() {
+  try { return JSON.parse(localStorage.getItem(BRAIN_STORAGE_KEY)); } catch { return null; }
+}
+let miniIA = MiniIA.create(loadGuestBrain());
+
+function saveBrain() {
+  if (!villeAccount) {
+    try { localStorage.setItem(BRAIN_STORAGE_KEY, JSON.stringify(miniIA)); } catch {}
+    return;
+  }
+  fetch('/api/account/brain', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: villeAccount.name, code: villeAccount.code, brain: miniIA }),
+  }).catch(() => {});
+}
+
+// En QCM on peut trouver au hasard (1 chance sur 4), a l'ecrit non
+function brainGuess(type) { return type === 'ecrit' ? 0 : 0.25; }
+
+function learnFromAnswer(index, correct, type) {
+  MiniIA.record(miniIA, subject.label, { level: quizDifficulty, index, total: quizQuestions.length, guess: brainGuess(type) }, correct);
+}
+
+function renderBrainNote() {
+  const pct = MiniIA.mastery(miniIA, subject.label);
+  let text = pct === null
+    ? t('brainLearning').replace('{subject}', subject.label)
+    : t('brainLevel').replace('{subject}', subject.label).replace('{pct}', pct);
+  const weak = MiniIA.weakest(miniIA);
+  if (weak && weak !== subject.label && MiniIA.mastery(miniIA, weak) < 60) text += ' ' + t('brainAdvice').replace('{subject}', weak);
+  quizBrainNote.textContent = text;
+}
+
+function renderAccountBrain() {
+  const list = MiniIA.summary(miniIA);
+  accountBrain.innerHTML = '';
+  const title = document.createElement('p');
+  title.className = 'account-brain-title';
+  title.textContent = t('brainAccountTitle');
+  accountBrain.appendChild(title);
+  if (!list.length) {
+    const empty = document.createElement('p');
+    empty.className = 'account-text';
+    empty.textContent = t('brainNoData');
+    accountBrain.appendChild(empty);
+    return;
+  }
+  list.slice(0, 8).forEach(({ name, mastery }) => {
+    const row = document.createElement('div');
+    row.className = 'account-brain-row';
+    row.innerHTML = '<span></span><div class="account-brain-bar"><div></div></div><b></b>';
+    row.children[0].textContent = name;
+    row.querySelector('.account-brain-bar div').style.width = mastery + '%';
+    row.children[2].textContent = mastery + ' %';
+    accountBrain.appendChild(row);
+  });
 }
 
 let quizQuestions = [];
@@ -2161,6 +2245,7 @@ function answerIsElaborated(userAnswer, expected) {
 function openQuiz(mode) {
   stopProfSpeaking();
   quizMode = mode || 'qcm';
+  quizDifficulty = MiniIA.chooseLevel(miniIA, subject.label, brainGuess(quizMode));
   quizScreen.style.display = 'flex';
   quizBadge.textContent = `🎓 ${subject.icon} ${subject.label} · ${QUIZ_LEVEL_LABELS[quizDifficulty]}`;
   quizResult.style.display = 'none';
@@ -2282,6 +2367,7 @@ function revealQuizAnswer(chosenIdx) {
     if (i === q.correctIndex) btn.classList.add('correct');
     else if (i === chosenIdx) btn.classList.add('wrong');
   });
+  learnFromAnswer(quizIndex, chosenIdx === q.correctIndex, 'qcm');
 
   if (chosenIdx === q.correctIndex) {
     const points = quizPointsPerCorrect();
@@ -2304,6 +2390,7 @@ function revealWrittenAnswer() {
 
   const q = quizQuestions[quizIndex];
   const correct = fuzzyAnswerMatch(quizWrittenInput.value, q.answer);
+  learnFromAnswer(quizIndex, correct, 'ecrit');
   quizWrittenInput.disabled = true;
   quizWrittenInput.classList.add(correct ? 'correct' : 'wrong');
   quizWrittenValidateBtn.style.display = 'none';
@@ -2403,6 +2490,7 @@ quizEvalValidateBtn.addEventListener('click', () => {
     if (q.type === 'ecrit') {
       const input = quizEvalList.querySelector(`.quiz-eval-written[data-q="${qi}"]`);
       const correct = fuzzyAnswerMatch(input.value, q.answer);
+      learnFromAnswer(qi, correct, 'ecrit');
       input.disabled = true;
       input.classList.add(correct ? 'correct' : 'wrong');
       if (!correct) {
@@ -2414,6 +2502,7 @@ quizEvalValidateBtn.addEventListener('click', () => {
       if (correct) { quizScore += points; quizCorrectCount++; }
     } else {
       const chosen = quizEvalSelections[qi];
+      learnFromAnswer(qi, chosen === q.correctIndex, 'qcm');
       if (chosen === q.correctIndex) { quizScore += points; quizCorrectCount++; }
       quizEvalList.querySelectorAll(`.quiz-eval-option[data-q="${qi}"]`).forEach(b => {
         const oi = Number(b.dataset.o);
@@ -2434,14 +2523,14 @@ function showQuizResult() {
   quizResult.style.display = 'block';
 
   const total = quizQuestions.length;
+  // La mini-IA vient d'apprendre de chaque reponse : elle choisit le niveau du prochain quiz
+  const levels = MiniIA.LEVELS;
+  const nextDifficulty = MiniIA.chooseLevel(miniIA, subject.label, brainGuess(quizMode));
   let difficultyNote = t('quizDifficultySame');
-  if (quizMode === 'qcm') {
-    const previousDifficulty = quizDifficulty;
-    adjustQuizDifficulty(quizCorrectCount, total);
-    if (quizDifficulty !== previousDifficulty) {
-      difficultyNote = quizDifficulty === 'facile' ? t('quizDifficultyEasier') : t('quizDifficultyHarder');
-    }
-  }
+  if (levels.indexOf(nextDifficulty) < levels.indexOf(quizDifficulty)) difficultyNote = t('quizDifficultyEasier');
+  else if (levels.indexOf(nextDifficulty) > levels.indexOf(quizDifficulty)) difficultyNote = t('quizDifficultyHarder');
+  saveBrain();
+  renderBrainNote();
 
   quizResultScore.textContent = t('quizResultTemplate')
     .replace('{score}', String(quizScore).padStart(4, '0'))
