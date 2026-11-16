@@ -197,18 +197,33 @@ Tu dois repondre UNIQUEMENT avec un objet JSON valide, sans texte autour, sans b
 {"titre": "...", "sections": [{"titre": "...", "contenu": "..."}, ...], "resume": "..."}${languageInstruction(language)}`;
 }
 
+// Mode "Le prof m'interroge" : c'est le prof qui pose les questions, l'eleve repond
+const INTERRO_INSTRUCTION = `
+
+MODE INTERROGATION ACTIVE : c'est TOI qui interroges l'eleve, comme une interrogation orale en classe.
+- Pose UNE seule question a la fois sur la matiere, adaptee a son niveau, puis attends sa reponse.
+- Commence par une question facile, puis augmente doucement la difficulte quand il reussit.
+- Quand il repond : dis-lui d'abord si c'est juste ou pas.
+  - Si c'est juste : felicite sa methode en une phrase, puis pose la question suivante dans le meme message.
+  - Si c'est faux ou incomplet : ne donne pas la reponse, donne un indice ou une question plus simple pour l'aider a trouver, et laisse-le reessayer.
+- S'il dit qu'il ne sait pas, donne un indice. S'il demande d'arreter, felicite-le et fais un petit bilan (ce qu'il sait bien, ce qu'il doit revoir).
+- Ecris la question en cours au tableau (champ "tableau").
+- Mets "suggestion" a null pendant l'interrogation.
+- Respecte aussi le livre du bon prof dans tes questions (par exemple : pas de pizza, choisis des exemples surprenants et varies).`;
+
 app.post('/api/chat', async (req, res) => {
   if (!API_KEY) {
     return res.status(500).json({ error: "Cle API manquante. Configure ANTHROPIC_API_KEY dans le fichier .env du serveur." });
   }
 
-  const { messages, grade, subject, language, profile } = req.body;
+  const { messages, grade, subject, language, profile, interro } = req.body;
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages manquant ou invalide' });
   }
 
   try {
-    const rawText = await callClaude(buildSystemPrompt(grade, subject, language) + profileInstruction(profile), messages, 700);
+    const system = buildSystemPrompt(grade, subject, language) + profileInstruction(profile) + (interro ? INTERRO_INSTRUCTION : '');
+    const rawText = await callClaude(system, messages, 700);
 
     let parsed;
     try {

@@ -1581,3 +1581,10 @@ canvas#tableau {
 .account-brain-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-brain-bar { height: 10px; border-radius: 6px; background: #ece7ff; overflow: hidden; }
 .account-brain-bar div { height: 100%; border-radius: 6px; background: linear-gradient(90deg, #ff9a3c, #7b5cff); }
+
+/* Bouton "Le prof m'interroge" : bien visible quand l'interrogation est en cours */
+.interro-btn.active {
+  background: #e8590c;
+  color: #fff;
+  border-color: #e8590c;
+}
