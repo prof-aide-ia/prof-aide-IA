@@ -374,16 +374,41 @@ function accountFilePath(key) {
   return path.join(ACCOUNTS_DIR, `${key}.json`);
 }
 
-function readAccount(key) {
+// Les comptes sont ranges dans une base de donnees Upstash (gratuite) quand elle est configuree
+// sur Render : contrairement aux fichiers, elle n'est pas effacee quand le serveur redemarre.
+// Sans elle (par exemple sur l'ordinateur), on garde les fichiers du dossier accounts/.
+const DB_URL = process.env.UPSTASH_REDIS_REST_URL;
+const DB_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+async function dbCommand(command) {
+  const response = await fetch(DB_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${DB_TOKEN}`, 'content-type': 'application/json' },
+    body: JSON.stringify(command),
+  });
+  if (!response.ok) throw new Error(`Base de donnees : erreur ${response.status}`);
+  return (await response.json()).result;
+}
+
+async function readAccount(key) {
   if (!key) return null;
   try {
+    if (DB_URL && DB_TOKEN) {
+      const raw = await dbCommand(['GET', `compte:${key}`]);
+      return raw ? JSON.parse(raw) : null;
+    }
     return JSON.parse(fs.readFileSync(accountFilePath(key), 'utf8'));
-  } catch {
+  } catch (err) {
+    if (DB_URL && DB_TOKEN) console.error(err);
     return null;
   }
 }
 
-function writeAccount(account) {
+async function writeAccount(account) {
+  if (DB_URL && DB_TOKEN) {
+    await dbCommand(['SET', `compte:${account.key}`, JSON.stringify(account)]);
+    return;
+  }
   fs.writeFileSync(accountFilePath(account.key), JSON.stringify(account));
 }
 
@@ -395,9 +420,17 @@ function isStrongCode(code) {
   return typeof code === 'string' && code.length >= 6 && code.length <= 40 && /[a-zA-Z]/.test(code) && /[0-9]/.test(code);
 }
 
+// Si la base de donnees ne repond pas, on renvoie une erreur propre au lieu de bloquer la page
+function safe(handler) {
+  return (req, res, next) => handler(req, res, next).catch((err) => {
+    console.error(err);
+    res.status(500).json({ error: 'errServer' });
+  });
+}
+
 // Verifie prenom + code ; renvoie le compte ou null
-function checkLogin(name, code) {
-  const account = readAccount(nameKey(name));
+async function checkLogin(name, code) {
+  const account = await readAccount(nameKey(name));
   if (!account || typeof code !== 'string' || !account.salt) return null;
   const hash = Buffer.from(hashCode(code, account.salt), 'hex');
   const expected = Buffer.from(account.hash, 'hex');
@@ -418,7 +451,7 @@ function tooManyTries(ip) {
   return list.length > 15;
 }
 
-app.post('/api/account/register', (req, res) => {
+app.post('/api/account/register', safe(async (req, res) => {
   const { name, code, codeConfirm, age, grade, gender } = req.body || {};
   const cleanName = typeof name === 'string' ? name.trim().replace(/\s+/g, ' ') : '';
   if (!/^[\p{L}][\p{L} '-]{1,15}$/u.test(cleanName)) return res.status(400).json({ error: 'errName' });
@@ -430,28 +463,28 @@ app.post('/api/account/register', (req, res) => {
   if (!GENDERS.includes(gender)) return res.status(400).json({ error: 'errGender' });
   const key = nameKey(cleanName);
   if (!key) return res.status(400).json({ error: 'errName' });
-  if (readAccount(key)) return res.status(409).json({ error: 'errNameTaken' });
+  if (await readAccount(key)) return res.status(409).json({ error: 'errNameTaken' });
   const salt = crypto.randomBytes(16).toString('hex');
   const account = { key, name: cleanName, salt, hash: hashCode(code, salt), age: ageNum, grade, gender, stars: 0, created: Date.now() };
-  writeAccount(account);
+  await writeAccount(account);
   res.json({ account: publicAccount(account) });
-});
+}));
 
-app.post('/api/account/login', (req, res) => {
+app.post('/api/account/login', safe(async (req, res) => {
   const { name, code } = req.body || {};
   if (tooManyTries(req.ip)) return res.status(429).json({ error: 'errTooMany' });
   if (typeof name !== 'string' || !name.trim() || typeof code !== 'string' || !code) {
     return res.status(400).json({ error: 'errMissing' });
   }
-  const account = checkLogin(name, code);
+  const account = await checkLogin(name, code);
   if (!account) return res.status(401).json({ error: 'errLogin' });
   res.json({ account: publicAccount(account) });
-});
+}));
 
-app.post('/api/account/stars', (req, res) => {
+app.post('/api/account/stars', safe(async (req, res) => {
   const { name, code, stars } = req.body || {};
   if (!Number.isFinite(stars)) return res.status(400).json({ error: 'Donnees invalides' });
-  const account = checkLogin(name, code);
+  const account = await checkLogin(name, code);
   if (!account) return res.status(401).json({ error: 'Compte introuvable' });
   const newStars = Math.max(0, Math.round(stars));
   const gain = newStars - (account.stars || 0);
@@ -467,9 +500,9 @@ app.post('/api/account/stars', (req, res) => {
     account.gains = recent;
   }
   account.stars = newStars;
-  writeAccount(account);
+  await writeAccount(account);
   res.json({ ok: true });
-});
+}));
 
 // Ce que la mini-IA de progression a appris sur l'eleve (niveau estime par matiere)
 function cleanBrain(brain) {
@@ -485,16 +518,16 @@ function cleanBrain(brain) {
   return { subjects };
 }
 
-app.post('/api/account/brain', (req, res) => {
+app.post('/api/account/brain', safe(async (req, res) => {
   const { name, code, brain } = req.body || {};
-  const account = checkLogin(name, code);
+  const account = await checkLogin(name, code);
   if (!account) return res.status(401).json({ error: 'Compte introuvable' });
   const clean = cleanBrain(brain);
   if (!clean) return res.status(400).json({ error: 'Donnees invalides' });
   account.brain = clean;
-  writeAccount(account);
+  await writeAccount(account);
   res.json({ ok: true });
-});
+}));
 
 app.listen(PORT, () => {
   console.log(`Maitresse virtuelle disponible sur http://localhost:${PORT}`);
