@@ -374,11 +374,30 @@ function accountFilePath(key) {
   return path.join(ACCOUNTS_DIR, `${key}.json`);
 }
 
-// Les comptes sont ranges dans une base de donnees Upstash (gratuite) quand elle est configuree
-// sur Render : contrairement aux fichiers, elle n'est pas effacee quand le serveur redemarre.
-// Sans elle (par exemple sur l'ordinateur), on garde les fichiers du dossier accounts/.
+// Les comptes sont ranges dans une base de donnees gratuite (Supabase ou Upstash) quand elle est
+// configuree sur Render : contrairement aux fichiers, elle n'est pas effacee quand le serveur
+// redemarre. Sans elle (par exemple sur l'ordinateur), on garde les fichiers du dossier accounts/.
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const DB_URL = process.env.UPSTASH_REDIS_REST_URL;
 const DB_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const USE_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_KEY);
+const USE_UPSTASH = !USE_SUPABASE && Boolean(DB_URL && DB_TOKEN);
+
+// Supabase : une table "comptes" avec une colonne key (le prenom simplifie) et data (le compte)
+async function supabaseRequest(query, options = {}) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/comptes${query}`, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      'content-type': 'application/json',
+      ...options.headers,
+    },
+  });
+  if (!response.ok) throw new Error(`Supabase : erreur ${response.status} ${await response.text()}`);
+  return response;
+}
 
 async function dbCommand(command) {
   const response = await fetch(DB_URL, {
@@ -393,19 +412,31 @@ async function dbCommand(command) {
 async function readAccount(key) {
   if (!key) return null;
   try {
-    if (DB_URL && DB_TOKEN) {
+    if (USE_SUPABASE) {
+      const rows = await (await supabaseRequest(`?key=eq.${encodeURIComponent(key)}&select=data`)).json();
+      return rows.length ? rows[0].data : null;
+    }
+    if (USE_UPSTASH) {
       const raw = await dbCommand(['GET', `compte:${key}`]);
       return raw ? JSON.parse(raw) : null;
     }
     return JSON.parse(fs.readFileSync(accountFilePath(key), 'utf8'));
   } catch (err) {
-    if (DB_URL && DB_TOKEN) console.error(err);
+    if (USE_SUPABASE || USE_UPSTASH) console.error(err);
     return null;
   }
 }
 
 async function writeAccount(account) {
-  if (DB_URL && DB_TOKEN) {
+  if (USE_SUPABASE) {
+    await supabaseRequest('', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({ key: account.key, data: account }),
+    });
+    return;
+  }
+  if (USE_UPSTASH) {
     await dbCommand(['SET', `compte:${account.key}`, JSON.stringify(account)]);
     return;
   }
