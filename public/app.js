@@ -1408,23 +1408,23 @@ const I18N = {
 const I18N_FALLBACK_ALIAS = {};
 
 // Textes de la mini-IA de progression, dans les 15 langues (meme ordre que BRAIN_I18N_KEYS)
-const BRAIN_I18N_KEYS = ['brainLevel', 'brainLearning', 'brainAdvice', 'brainAccountTitle', 'brainNoData'];
+const BRAIN_I18N_KEYS = ['brainLevel', 'brainLearning', 'brainAdvice', 'brainAccountTitle', 'brainNoData', 'brainSeen'];
 const BRAIN_I18N = {
-  'fr-FR': ['🧠 Ta mini-IA pense que ton niveau en {subject} est de {pct} %.', '🧠 Ta mini-IA apprend encore à te connaître en {subject}.', 'Conseil : révise « {subject} », c\'est là que tu as le plus de mal.', '🧠 Ce que ta mini-IA a appris sur toi', 'Ta mini-IA ne te connaît pas encore. Fais quelques quiz !'],
-  'en-US': ['🧠 Your mini-AI thinks your level in {subject} is {pct}%.', '🧠 Your mini-AI is still getting to know you in {subject}.', 'Tip: review "{subject}", that\'s where you struggle the most.', '🧠 What your mini-AI has learned about you', 'Your mini-AI doesn\'t know you yet. Take a few quizzes!'],
-  'zh-CN': ['🧠 你的迷你AI认为你在{subject}的水平是 {pct}%。', '🧠 你的迷你AI还在了解你在{subject}的水平。', '建议：复习"{subject}"，这是你最薄弱的地方。', '🧠 你的迷你AI对你的了解', '你的迷你AI还不了解你。做几个测验吧！'],
-  'hi-IN': ['🧠 तुम्हारी मिनी-AI के अनुसार {subject} में तुम्हारा स्तर {pct}% है।', '🧠 तुम्हारी मिनी-AI अभी {subject} में तुम्हें जान रही है।', 'सलाह: "{subject}" दोहराओ, इसमें तुम्हें सबसे ज़्यादा मुश्किल होती है।', '🧠 तुम्हारी मिनी-AI ने तुम्हारे बारे में क्या सीखा', 'तुम्हारी मिनी-AI अभी तुम्हें नहीं जानती। कुछ क्विज़ करो!'],
-  'es-ES': ['🧠 Tu mini-IA cree que tu nivel en {subject} es del {pct} %.', '🧠 Tu mini-IA todavía te está conociendo en {subject}.', 'Consejo: repasa «{subject}», es donde más te cuesta.', '🧠 Lo que tu mini-IA ha aprendido sobre ti', 'Tu mini-IA aún no te conoce. ¡Haz algunos quiz!'],
-  'ar-SA': ['🧠 يعتقد ذكاؤك الاصطناعي الصغير أن مستواك في {subject} هو {pct}٪.', '🧠 ما زال ذكاؤك الاصطناعي الصغير يتعرف عليك في {subject}.', 'نصيحة: راجع «{subject}»، فهنا تجد أكبر صعوبة.', '🧠 ما تعلمه ذكاؤك الاصطناعي الصغير عنك', 'ذكاؤك الاصطناعي الصغير لا يعرفك بعد. قم ببعض الاختبارات!'],
-  'bn-BD': ['🧠 তোমার মিনি-AI মনে করে {subject}-এ তোমার স্তর {pct}%।', '🧠 তোমার মিনি-AI এখনো {subject}-এ তোমাকে চিনছে।', 'পরামর্শ: "{subject}" আবার পড়ো, এখানেই তোমার সবচেয়ে বেশি অসুবিধা।', '🧠 তোমার মিনি-AI তোমার সম্পর্কে যা শিখেছে', 'তোমার মিনি-AI এখনো তোমাকে চেনে না। কয়েকটা কুইজ করো!'],
-  'pt-PT': ['🧠 A tua mini-IA acha que o teu nível em {subject} é de {pct} %.', '🧠 A tua mini-IA ainda está a conhecer-te em {subject}.', 'Conselho: revê «{subject}», é aí que tens mais dificuldade.', '🧠 O que a tua mini-IA aprendeu sobre ti', 'A tua mini-IA ainda não te conhece. Faz alguns quizzes!'],
-  'ru-RU': ['🧠 Твой мини-ИИ считает, что твой уровень по теме «{subject}» — {pct} %.', '🧠 Твой мини-ИИ ещё узнаёт тебя по теме «{subject}».', 'Совет: повтори «{subject}», здесь тебе труднее всего.', '🧠 Что твой мини-ИИ узнал о тебе', 'Твой мини-ИИ тебя ещё не знает. Пройди несколько тестов!'],
-  'ur-PK': ['🧠 آپ کی منی-AI کے مطابق {subject} میں آپ کی سطح {pct}% ہے۔', '🧠 آپ کی منی-AI ابھی {subject} میں آپ کو جان رہی ہے۔', 'مشورہ: "{subject}" دہرائیں، اس میں آپ کو سب سے زیادہ مشکل ہوتی ہے۔', '🧠 آپ کی منی-AI نے آپ کے بارے میں کیا سیکھا', 'آپ کی منی-AI ابھی آپ کو نہیں جانتی۔ کچھ کوئز کریں!'],
-  'id-ID': ['🧠 Mini-AI-mu mengira levelmu di {subject} adalah {pct}%.', '🧠 Mini-AI-mu masih mengenalmu di {subject}.', 'Saran: ulangi "{subject}", di situ kamu paling kesulitan.', '🧠 Apa yang dipelajari mini-AI-mu tentangmu', 'Mini-AI-mu belum mengenalmu. Kerjakan beberapa kuis!'],
-  'de-DE': ['🧠 Deine Mini-KI schätzt dein Niveau in {subject} auf {pct} %.', '🧠 Deine Mini-KI lernt dich in {subject} noch kennen.', 'Tipp: Wiederhole „{subject}", dort hast du die meisten Schwierigkeiten.', '🧠 Was deine Mini-KI über dich gelernt hat', 'Deine Mini-KI kennt dich noch nicht. Mach ein paar Quiz!'],
-  'ja-JP': ['🧠 ミニAIは、{subject}のあなたのレベルを {pct}% だと考えています。', '🧠 ミニAIは{subject}でのあなたをまだ学んでいるところです。', 'アドバイス：「{subject}」を復習しよう。いちばん苦手なところだよ。', '🧠 ミニAIがあなたについて学んだこと', 'ミニAIはまだあなたのことを知りません。クイズをいくつかやってみよう！'],
-  'ko-KR': ['🧠 미니 AI는 {subject} 실력을 {pct}%로 보고 있어요.', '🧠 미니 AI가 아직 {subject}에서 당신을 알아가는 중이에요.', '조언: "{subject}"를 복습하세요. 가장 어려워하는 부분이에요.', '🧠 미니 AI가 당신에 대해 배운 것', '미니 AI가 아직 당신을 잘 몰라요. 퀴즈를 몇 개 풀어 보세요!'],
-  'it-IT': ['🧠 La tua mini-IA pensa che il tuo livello in {subject} sia del {pct} %.', '🧠 La tua mini-IA sta ancora imparando a conoscerti in {subject}.', 'Consiglio: ripassa «{subject}», è lì che fai più fatica.', '🧠 Cosa ha imparato su di te la tua mini-IA', 'La tua mini-IA non ti conosce ancora. Fai qualche quiz!'],
+  'fr-FR': ['🧠 Ta mini-IA pense que ton niveau en {subject} est de {pct} %.', '🧠 Ta mini-IA apprend encore à te connaître en {subject}.', 'Conseil : révise « {subject} », c\'est là que tu as le plus de mal.', '🧠 Ce que ta mini-IA a appris sur toi', 'Ta mini-IA ne te connaît pas encore. Fais quelques quiz !', "Elle a aussi vu {videos} vidéo(s) regardée(s) en entier et {questions} question(s) posée(s) au prof."],
+  'en-US': ['🧠 Your mini-AI thinks your level in {subject} is {pct}%.', '🧠 Your mini-AI is still getting to know you in {subject}.', 'Tip: review "{subject}", that\'s where you struggle the most.', '🧠 What your mini-AI has learned about you', 'Your mini-AI doesn\'t know you yet. Take a few quizzes!', "It also saw {videos} video(s) watched to the end and {questions} question(s) asked to the teacher."],
+  'zh-CN': ['🧠 你的迷你AI认为你在{subject}的水平是 {pct}%。', '🧠 你的迷你AI还在了解你在{subject}的水平。', '建议：复习"{subject}"，这是你最薄弱的地方。', '🧠 你的迷你AI对你的了解', '你的迷你AI还不了解你。做几个测验吧！', "它还看到你完整看了 {videos} 个视频，并向老师提了 {questions} 个问题。"],
+  'hi-IN': ['🧠 तुम्हारी मिनी-AI के अनुसार {subject} में तुम्हारा स्तर {pct}% है।', '🧠 तुम्हारी मिनी-AI अभी {subject} में तुम्हें जान रही है।', 'सलाह: "{subject}" दोहराओ, इसमें तुम्हें सबसे ज़्यादा मुश्किल होती है।', '🧠 तुम्हारी मिनी-AI ने तुम्हारे बारे में क्या सीखा', 'तुम्हारी मिनी-AI अभी तुम्हें नहीं जानती। कुछ क्विज़ करो!', "उसने यह भी देखा कि तुमने {videos} वीडियो पूरे देखे और शिक्षक से {questions} सवाल पूछे।"],
+  'es-ES': ['🧠 Tu mini-IA cree que tu nivel en {subject} es del {pct} %.', '🧠 Tu mini-IA todavía te está conociendo en {subject}.', 'Consejo: repasa «{subject}», es donde más te cuesta.', '🧠 Lo que tu mini-IA ha aprendido sobre ti', 'Tu mini-IA aún no te conoce. ¡Haz algunos quiz!', "También vio {videos} vídeo(s) vistos hasta el final y {questions} pregunta(s) al profesor."],
+  'ar-SA': ['🧠 يعتقد ذكاؤك الاصطناعي الصغير أن مستواك في {subject} هو {pct}٪.', '🧠 ما زال ذكاؤك الاصطناعي الصغير يتعرف عليك في {subject}.', 'نصيحة: راجع «{subject}»، فهنا تجد أكبر صعوبة.', '🧠 ما تعلمه ذكاؤك الاصطناعي الصغير عنك', 'ذكاؤك الاصطناعي الصغير لا يعرفك بعد. قم ببعض الاختبارات!', "رأى أيضًا {videos} فيديو شاهدته حتى النهاية و{questions} سؤالًا طرحته على المعلم."],
+  'bn-BD': ['🧠 তোমার মিনি-AI মনে করে {subject}-এ তোমার স্তর {pct}%।', '🧠 তোমার মিনি-AI এখনো {subject}-এ তোমাকে চিনছে।', 'পরামর্শ: "{subject}" আবার পড়ো, এখানেই তোমার সবচেয়ে বেশি অসুবিধা।', '🧠 তোমার মিনি-AI তোমার সম্পর্কে যা শিখেছে', 'তোমার মিনি-AI এখনো তোমাকে চেনে না। কয়েকটা কুইজ করো!', "সে আরও দেখেছে তুমি {videos}টি ভিডিও পুরো দেখেছ এবং শিক্ষককে {questions}টি প্রশ্ন করেছ।"],
+  'pt-PT': ['🧠 A tua mini-IA acha que o teu nível em {subject} é de {pct} %.', '🧠 A tua mini-IA ainda está a conhecer-te em {subject}.', 'Conselho: revê «{subject}», é aí que tens mais dificuldade.', '🧠 O que a tua mini-IA aprendeu sobre ti', 'A tua mini-IA ainda não te conhece. Faz alguns quizzes!', "Também viu {videos} vídeo(s) vistos até ao fim e {questions} pergunta(s) feitas ao professor."],
+  'ru-RU': ['🧠 Твой мини-ИИ считает, что твой уровень по теме «{subject}» — {pct} %.', '🧠 Твой мини-ИИ ещё узнаёт тебя по теме «{subject}».', 'Совет: повтори «{subject}», здесь тебе труднее всего.', '🧠 Что твой мини-ИИ узнал о тебе', 'Твой мини-ИИ тебя ещё не знает. Пройди несколько тестов!', "Он также увидел {videos} видео, просмотренных до конца, и {questions} вопросов учителю."],
+  'ur-PK': ['🧠 آپ کی منی-AI کے مطابق {subject} میں آپ کی سطح {pct}% ہے۔', '🧠 آپ کی منی-AI ابھی {subject} میں آپ کو جان رہی ہے۔', 'مشورہ: "{subject}" دہرائیں، اس میں آپ کو سب سے زیادہ مشکل ہوتی ہے۔', '🧠 آپ کی منی-AI نے آپ کے بارے میں کیا سیکھا', 'آپ کی منی-AI ابھی آپ کو نہیں جانتی۔ کچھ کوئز کریں!', "اس نے یہ بھی دیکھا کہ آپ نے {videos} ویڈیو پوری دیکھیں اور استاد سے {questions} سوال پوچھے۔"],
+  'id-ID': ['🧠 Mini-AI-mu mengira levelmu di {subject} adalah {pct}%.', '🧠 Mini-AI-mu masih mengenalmu di {subject}.', 'Saran: ulangi "{subject}", di situ kamu paling kesulitan.', '🧠 Apa yang dipelajari mini-AI-mu tentangmu', 'Mini-AI-mu belum mengenalmu. Kerjakan beberapa kuis!', "Ia juga melihat {videos} video yang ditonton sampai habis dan {questions} pertanyaan ke guru."],
+  'de-DE': ['🧠 Deine Mini-KI schätzt dein Niveau in {subject} auf {pct} %.', '🧠 Deine Mini-KI lernt dich in {subject} noch kennen.', 'Tipp: Wiederhole „{subject}", dort hast du die meisten Schwierigkeiten.', '🧠 Was deine Mini-KI über dich gelernt hat', 'Deine Mini-KI kennt dich noch nicht. Mach ein paar Quiz!', "Sie hat auch {videos} komplett angesehene Video(s) und {questions} Frage(n) an den Lehrer gesehen."],
+  'ja-JP': ['🧠 ミニAIは、{subject}のあなたのレベルを {pct}% だと考えています。', '🧠 ミニAIは{subject}でのあなたをまだ学んでいるところです。', 'アドバイス：「{subject}」を復習しよう。いちばん苦手なところだよ。', '🧠 ミニAIがあなたについて学んだこと', 'ミニAIはまだあなたのことを知りません。クイズをいくつかやってみよう！', "動画を最後まで {videos} 本見て、先生に {questions} 回質問したことも学んだよ。"],
+  'ko-KR': ['🧠 미니 AI는 {subject} 실력을 {pct}%로 보고 있어요.', '🧠 미니 AI가 아직 {subject}에서 당신을 알아가는 중이에요.', '조언: "{subject}"를 복습하세요. 가장 어려워하는 부분이에요.', '🧠 미니 AI가 당신에 대해 배운 것', '미니 AI가 아직 당신을 잘 몰라요. 퀴즈를 몇 개 풀어 보세요!', "영상 {videos}개를 끝까지 보고 선생님께 질문 {questions}개를 한 것도 배웠어요."],
+  'it-IT': ['🧠 La tua mini-IA pensa che il tuo livello in {subject} sia del {pct} %.', '🧠 La tua mini-IA sta ancora imparando a conoscerti in {subject}.', 'Consiglio: ripassa «{subject}», è lì che fai più fatica.', '🧠 Cosa ha imparato su di te la tua mini-IA', 'La tua mini-IA non ti conosce ancora. Fai qualche quiz!', "Ha visto anche {videos} video guardati fino alla fine e {questions} domanda/e fatte al prof."],
 };
 Object.keys(BRAIN_I18N).forEach((lang) => {
   if (!I18N[lang]) return;
@@ -2050,6 +2050,8 @@ async function askProf(eleveText) {
     }
 
     history.push({ role: 'assistant', content: JSON.stringify(data) });
+    MiniIA.activity(miniIA, subject.label, 'question');
+    saveBrain();
 
     bubbleText.textContent = data.reponse;
     writeOnBoard(data.tableau);
@@ -2159,6 +2161,13 @@ function renderAccountBrain() {
   title.className = 'account-brain-title';
   title.textContent = t('brainAccountTitle');
   accountBrain.appendChild(title);
+  const { videos, questions } = MiniIA.totals(miniIA);
+  if (videos || questions) {
+    const seen = document.createElement('p');
+    seen.className = 'account-text account-brain-seen';
+    seen.textContent = t('brainSeen').replace('{videos}', videos).replace('{questions}', questions);
+    accountBrain.appendChild(seen);
+  }
   if (!list.length) {
     const empty = document.createElement('p');
     empty.className = 'account-text';
@@ -2644,6 +2653,8 @@ async function openVideo() {
             if (!videoWatchedRewardGiven) {
               videoWatchedRewardGiven = true;
               addStars(500);
+              MiniIA.activity(miniIA, subject.label, 'video');
+              saveBrain();
               showVideoRewardBanner();
             }
           }

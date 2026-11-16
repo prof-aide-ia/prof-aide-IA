@@ -12,6 +12,9 @@
   // Reglages trouves par l'entrainement (voir train-brain.js) sur des eleves simules
   const PARAMS = { k0: 0.45, kMin: 0.03, kDecay: 0.2, spread: 1.5 };
   const MIN_ANSWERS = 3; // en dessous, la mini-IA ne sait pas encore assez de choses
+  // Regarder une video en entier fait un peu progresser (comme dans l'entrainement : l'eleve
+  // progresse en travaillant) ; une question au prof compte comme du travail sur la matiere
+  const VIDEO_BOOST = 0.1;
 
   function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
 
@@ -25,7 +28,9 @@
     const brain = { subjects: {} };
     if (saved && typeof saved === 'object' && saved.subjects && typeof saved.subjects === 'object') {
       for (const [name, s] of Object.entries(saved.subjects)) {
-        if (s && Number.isFinite(s.theta) && Number.isFinite(s.n)) brain.subjects[name] = { theta: s.theta, n: s.n };
+        if (s && Number.isFinite(s.theta) && Number.isFinite(s.n)) {
+          brain.subjects[name] = { theta: s.theta, n: s.n, videos: s.videos || 0, questions: s.questions || 0 };
+        }
       }
     }
     return brain;
@@ -41,7 +46,7 @@
   // Apprend d'une reponse : elle corrige son estimation selon a quel point elle s'est trompee
   // (une bonne reponse en QCM compte moins, car elle a pu etre trouvee au hasard)
   function record(brain, subject, q, correct, params = PARAMS) {
-    const s = brain.subjects[subject] || (brain.subjects[subject] = { theta: 0, n: 0 });
+    const s = subjectState(brain, subject);
     const guess = q.guess || 0;
     const sig = sigmoid(s.theta - questionDifficulty(q.level, q.index, q.total, params));
     const p = guess + (1 - guess) * sig;
@@ -49,6 +54,27 @@
     const gradient = ((correct ? 1 : 0) - p) * (1 - guess) * sig * (1 - sig) / Math.max(1e-6, p * (1 - p));
     s.theta = Math.max(-4, Math.min(4, s.theta + k * gradient));
     s.n++;
+  }
+
+  function subjectState(brain, subject) {
+    return brain.subjects[subject] || (brain.subjects[subject] = { theta: 0, n: 0, videos: 0, questions: 0 });
+  }
+
+  // Apprend aussi de ce que l'eleve fait en dehors des quiz : 'video' (regardee en entier) ou 'question' (au prof)
+  function activity(brain, subject, kind) {
+    const s = subjectState(brain, subject);
+    if (kind === 'video') {
+      s.videos = (s.videos || 0) + 1;
+      s.theta = Math.min(4, s.theta + VIDEO_BOOST);
+    } else if (kind === 'question') {
+      s.questions = (s.questions || 0) + 1;
+    }
+  }
+
+  function totals(brain) {
+    let videos = 0, questions = 0;
+    for (const s of Object.values(brain.subjects)) { videos += s.videos || 0; questions += s.questions || 0; }
+    return { videos, questions };
   }
 
   // Choisit le niveau dont la reussite prevue est la plus proche de l'objectif
@@ -86,7 +112,7 @@
       .sort((a, b) => b.mastery - a.mastery);
   }
 
-  const MiniIA = { LEVELS, PARAMS, create, predict, record, chooseLevel, mastery, weakest, summary, questionDifficulty };
+  const MiniIA = { LEVELS, PARAMS, create, predict, record, activity, totals, chooseLevel, mastery, weakest, summary, questionDifficulty };
   if (typeof module !== 'undefined' && module.exports) module.exports = MiniIA;
   else root.MiniIA = MiniIA;
 })(typeof window !== 'undefined' ? window : globalThis);

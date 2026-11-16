@@ -433,7 +433,8 @@ function cleanBrain(brain) {
   for (const [name, s] of Object.entries(brain.subjects).slice(0, 80)) {
     if (typeof name !== 'string' || name.length > 60 || !s) continue;
     if (!Number.isFinite(s.theta) || !Number.isFinite(s.n)) continue;
-    subjects[name] = { theta: Math.max(-4, Math.min(4, s.theta)), n: Math.max(0, Math.min(100000, Math.round(s.n))) };
+    const count = (v) => (Number.isFinite(v) ? Math.max(0, Math.min(100000, Math.round(v))) : 0);
+    subjects[name] = { theta: Math.max(-4, Math.min(4, s.theta)), n: count(s.n), videos: count(s.videos), questions: count(s.questions) };
   }
   return { subjects };
 }
