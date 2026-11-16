@@ -29,7 +29,8 @@
     if (saved && typeof saved === 'object' && saved.subjects && typeof saved.subjects === 'object') {
       for (const [name, s] of Object.entries(saved.subjects)) {
         if (s && Number.isFinite(s.theta) && Number.isFinite(s.n)) {
-          brain.subjects[name] = { theta: s.theta, n: s.n, videos: s.videos || 0, questions: s.questions || 0 };
+          const recent = Array.isArray(s.recent) ? s.recent.filter(Number.isFinite).slice(-3) : [];
+          brain.subjects[name] = { theta: s.theta, n: s.n, videos: s.videos || 0, questions: s.questions || 0, recent };
         }
       }
     }
@@ -57,7 +58,7 @@
   }
 
   function subjectState(brain, subject) {
-    return brain.subjects[subject] || (brain.subjects[subject] = { theta: 0, n: 0, videos: 0, questions: 0 });
+    return brain.subjects[subject] || (brain.subjects[subject] = { theta: 0, n: 0, videos: 0, questions: 0, recent: [] });
   }
 
   // Apprend aussi de ce que l'eleve fait en dehors des quiz : 'video' (regardee en entier) ou 'question' (au prof)
@@ -94,10 +95,35 @@
     return result;
   }
 
+  // Livre du bon prof, chapitre 6 : un eleve qui rate deux quiz de suite est decourage
+  function isDiscouraged(s) {
+    const recent = (s && s.recent) || [];
+    return recent.length >= 2 && recent.slice(-2).every((r) => r < 0.3);
+  }
+
+  // Note le resultat d'un quiz termine (taux de bonnes reponses), pour reperer le decouragement
+  function endQuiz(brain, subject, correct, total) {
+    const s = subjectState(brain, subject);
+    s.recent = [...(s.recent || []), total > 0 ? correct / total : 0].slice(-3);
+  }
+
+  // Livre du bon prof, chapitre 6 : feliciter l'effort, et rassurer quand ca n'a pas marche
+  function encouragement(brain, subject) {
+    const s = brain.subjects[subject];
+    const last = s && s.recent && s.recent.length ? s.recent[s.recent.length - 1] : null;
+    if (last === null) return null;
+    if (isDiscouraged(s)) return 'brainCheerReset';
+    if (last < 0.5) return 'brainCheerLow';
+    if (last < 0.9) return 'brainCheerMid';
+    return 'brainCheerHigh';
+  }
+
   // Choisit le niveau dont la reussite prevue est la plus proche de l'objectif
   function chooseLevel(brain, subject, guess = 0) {
     const s = brain.subjects[subject];
     if (!s || s.n < MIN_ANSWERS) return 'normal';
+    // Decourage : on revient a une etape plus facile qu'il va reussir, pour lui redonner confiance
+    if (isDiscouraged(s)) return 'facile';
     let best = 'normal';
     let bestGap = Infinity;
     for (const level of LEVELS) {
@@ -129,7 +155,7 @@
       .sort((a, b) => b.mastery - a.mastery);
   }
 
-  const MiniIA = { LEVELS, PARAMS, create, predict, record, activity, totals, profile, chooseLevel, mastery, weakest, summary, questionDifficulty };
+  const MiniIA = { LEVELS, PARAMS, create, predict, record, activity, totals, profile, endQuiz, encouragement, chooseLevel, mastery, weakest, summary, questionDifficulty };
   if (typeof module !== 'undefined' && module.exports) module.exports = MiniIA;
   else root.MiniIA = MiniIA;
 })(typeof window !== 'undefined' ? window : globalThis);

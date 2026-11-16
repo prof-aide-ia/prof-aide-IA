@@ -464,7 +464,8 @@ function cleanBrain(brain) {
     if (typeof name !== 'string' || name.length > 60 || !s) continue;
     if (!Number.isFinite(s.theta) || !Number.isFinite(s.n)) continue;
     const count = (v) => (Number.isFinite(v) ? Math.max(0, Math.min(100000, Math.round(v))) : 0);
-    subjects[name] = { theta: Math.max(-4, Math.min(4, s.theta)), n: count(s.n), videos: count(s.videos), questions: count(s.questions) };
+    const recent = Array.isArray(s.recent) ? s.recent.filter((r) => Number.isFinite(r) && r >= 0 && r <= 1).slice(-3) : [];
+    subjects[name] = { theta: Math.max(-4, Math.min(4, s.theta)), n: count(s.n), videos: count(s.videos), questions: count(s.questions), recent };
   }
   return { subjects };
 }
