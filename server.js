@@ -372,7 +372,10 @@ function accountFilePath(key) {
 // Les comptes sont ranges dans une base de donnees gratuite (Supabase ou Upstash) quand elle est
 // configuree sur Render : contrairement aux fichiers, elle n'est pas effacee quand le serveur
 // redemarre. Sans elle (par exemple sur l'ordinateur), on garde les fichiers du dossier accounts/.
-const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+// On ne garde que le debut de l'adresse (https://xxx.supabase.co), meme si /rest/v1 a ete copie avec
+const SUPABASE_URL = (() => {
+  try { return process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL.trim()).origin : ''; } catch { return ''; }
+})();
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const DB_URL = process.env.UPSTASH_REDIS_REST_URL;
 const DB_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
