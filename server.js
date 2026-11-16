@@ -390,7 +390,8 @@ async function supabaseRequest(query, options = {}) {
     ...options,
     headers: {
       apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
+      // Les anciennes cles (eyJ...) vont aussi dans Authorization ; les nouvelles (sb_secret_...) non
+      ...(SUPABASE_KEY.startsWith('eyJ') ? { Authorization: `Bearer ${SUPABASE_KEY}` } : {}),
       'content-type': 'application/json',
       ...options.headers,
     },
