@@ -77,6 +77,23 @@
     return { videos, questions };
   }
 
+  // Profil de l'eleve pour que Claude adapte ses lecons : son niveau dans la matiere,
+  // sa facon preferee d'apprendre (videos, questions au prof ou quiz) et sa matiere la plus difficile
+  function profile(brain, subject) {
+    const result = {};
+    const level = mastery(brain, subject);
+    if (level !== null) result.level = level;
+    const { videos, questions } = totals(brain);
+    let quizzes = 0;
+    for (const s of Object.values(brain.subjects)) quizzes += Math.round((s.n || 0) / 10);
+    const ways = { video: videos, questions, quiz: quizzes };
+    const [bestWay, bestCount] = Object.entries(ways).sort((a, b) => b[1] - a[1])[0];
+    if (bestCount >= 3) result.style = bestWay;
+    const weak = weakest(brain);
+    if (weak && weak !== subject && mastery(brain, weak) < 60) result.weak = weak;
+    return result;
+  }
+
   // Choisit le niveau dont la reussite prevue est la plus proche de l'objectif
   function chooseLevel(brain, subject, guess = 0) {
     const s = brain.subjects[subject];
@@ -112,7 +129,7 @@
       .sort((a, b) => b.mastery - a.mastery);
   }
 
-  const MiniIA = { LEVELS, PARAMS, create, predict, record, activity, totals, chooseLevel, mastery, weakest, summary, questionDifficulty };
+  const MiniIA = { LEVELS, PARAMS, create, predict, record, activity, totals, profile, chooseLevel, mastery, weakest, summary, questionDifficulty };
   if (typeof module !== 'undefined' && module.exports) module.exports = MiniIA;
   else root.MiniIA = MiniIA;
 })(typeof window !== 'undefined' ? window : globalThis);

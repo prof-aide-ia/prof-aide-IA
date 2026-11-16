@@ -80,6 +80,31 @@ function languageInstruction(language) {
   return `\n\nIMPORTANT : ecris absolument tout ton texte (les champs de reponse) en ${language}, pas en francais. Traduis aussi les notions/exemples dans cette langue.`;
 }
 
+// Ce que la mini-IA de progression (public/brain.js) a appris de l'eleve : Claude s'en sert
+// pour adapter sa lecon a lui (simplifier, aller plus loin, passer par des videos ou des exercices)
+function profileInstruction(profile) {
+  if (!profile || typeof profile !== 'object') return '';
+  const parts = [];
+  if (Number.isInteger(profile.level) && profile.level >= 0 && profile.level <= 100) {
+    const conseil = profile.level < 40
+      ? 'explique tres simplement, en petites etapes, avec des exemples concrets'
+      : profile.level > 75
+        ? 'il est a l\'aise : tu peux aller plus loin et lui proposer des defis'
+        : 'garde un niveau normal pour sa classe';
+    parts.push(`son niveau estime dans cette matiere est de ${profile.level} % : ${conseil}`);
+  }
+  const styles = {
+    video: 'il apprend surtout en regardant des videos : utilise des images mentales et propose la video quand c\'est utile',
+    questions: 'il apprend surtout en posant des questions : avance avec lui pas a pas, par le dialogue',
+    quiz: 'il apprend surtout en s\'entrainant : propose vite de petits exercices',
+  };
+  if (styles[profile.style]) parts.push(styles[profile.style]);
+  if (typeof profile.weak === 'string' && profile.weak.trim()) {
+    parts.push(`sa matiere la plus difficile en ce moment est « ${profile.weak.trim().slice(0, 60).replace(/["\r\n]/g, ' ')} »`);
+  }
+  return parts.length ? `\n\nProfil de l'eleve, appris par la mini-IA du site : ${parts.join(' ; ')}.` : '';
+}
+
 function buildSystemPrompt(grade, subject, language) {
   const niveauInconnu = !grade;
   const contexteNiveau = niveauInconnu
@@ -172,13 +197,13 @@ app.post('/api/chat', async (req, res) => {
     return res.status(500).json({ error: "Cle API manquante. Configure ANTHROPIC_API_KEY dans le fichier .env du serveur." });
   }
 
-  const { messages, grade, subject, language } = req.body;
+  const { messages, grade, subject, language, profile } = req.body;
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages manquant ou invalide' });
   }
 
   try {
-    const rawText = await callClaude(buildSystemPrompt(grade, subject, language), messages, 700);
+    const rawText = await callClaude(buildSystemPrompt(grade, subject, language) + profileInstruction(profile), messages, 700);
 
     let parsed;
     try {
@@ -199,7 +224,7 @@ app.post('/api/quiz', async (req, res) => {
     return res.status(500).json({ error: "Cle API manquante. Configure ANTHROPIC_API_KEY dans le fichier .env du serveur." });
   }
 
-  const { grade, subject, difficulty, language, mode, history } = req.body;
+  const { grade, subject, difficulty, language, mode, history, profile } = req.body;
   const hasHistory = Array.isArray(history) && history.length > 0;
 
   try {
@@ -208,7 +233,7 @@ app.post('/api/quiz', async (req, res) => {
       : [{ role: 'user', content: 'Genere le quiz maintenant.' }];
 
     const rawText = await callClaude(
-      buildQuizPrompt(grade, subject, difficulty, language, mode, hasHistory),
+      buildQuizPrompt(grade, subject, difficulty, language, mode, hasHistory) + profileInstruction(profile),
       messages,
       mode === 'evaluation' ? 2000 : 1800
     );
@@ -237,7 +262,7 @@ app.post('/api/fiche', async (req, res) => {
     return res.status(500).json({ error: "Cle API manquante. Configure ANTHROPIC_API_KEY dans le fichier .env du serveur." });
   }
 
-  const { grade, subject, history, language } = req.body;
+  const { grade, subject, history, language, profile } = req.body;
   const hasHistory = Array.isArray(history) && history.length > 0;
 
   try {
@@ -245,7 +270,7 @@ app.post('/api/fiche', async (req, res) => {
       ? [...history, { role: 'user', content: 'Redige la fiche de cours maintenant, en tenant compte de notre conversation.' }]
       : [{ role: 'user', content: 'Redige la fiche de cours maintenant.' }];
 
-    const rawText = await callClaude(buildFichePrompt(grade, subject, hasHistory, language), messages, 1000);
+    const rawText = await callClaude(buildFichePrompt(grade, subject, hasHistory, language) + profileInstruction(profile), messages, 1000);
 
     let fiche;
     try {

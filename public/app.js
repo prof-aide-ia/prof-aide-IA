@@ -2039,7 +2039,7 @@ async function askProf(eleveText) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ messages: history, grade, subject: subject.label, language: profLanguage.label }),
+      body: JSON.stringify({ messages: history, grade, subject: subject.label, language: profLanguage.label, profile: MiniIA.profile(miniIA, subject.label) }),
     });
     const data = await res.json();
 
@@ -2281,7 +2281,7 @@ async function loadQuiz() {
     const res = await fetch('/api/quiz', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ grade, subject: subject.label, difficulty: quizDifficulty, language: profLanguage.label, mode: quizMode, history }),
+      body: JSON.stringify({ grade, subject: subject.label, difficulty: quizDifficulty, language: profLanguage.label, mode: quizMode, history, profile: MiniIA.profile(miniIA, subject.label) }),
     });
     const data = await res.json();
 
@@ -2692,7 +2692,7 @@ async function openFiche() {
     const res = await fetch('/api/fiche', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ grade, subject: subject.label, history, language: profLanguage.label }),
+      body: JSON.stringify({ grade, subject: subject.label, history, language: profLanguage.label, profile: MiniIA.profile(miniIA, subject.label) }),
     });
     const data = await res.json();
 
