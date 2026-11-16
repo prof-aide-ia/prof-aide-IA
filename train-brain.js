@@ -60,20 +60,35 @@ for (const k0 of [0.05, 0.1, 0.15, 0.2, 0.3, 0.45])
       for (const spread of [1, 1.5, 2])
         grid.push({ k0, kMin, kDecay, spread });
 
-console.log(`Entrainement : ${grid.length} reglages testes sur 2000 eleves simules chacun...`);
+const STUDENTS = 50000;
+
+// Etape 1 : tri rapide de tous les reglages sur 2000 eleves
+console.log(`Etape 1 : ${grid.length} reglages testes sur 2000 eleves simules chacun...`);
+const ranked = grid.map((params) => ({ params, r: simulate(params, 2000, 42) }))
+  .sort((a, b) => a.r.logLoss - b.r.logLoss);
+
+// Etape 2 : les 10 meilleurs et leurs voisins proches, testes sur beaucoup plus d'eleves
+const finalists = [];
+for (const { params } of ranked.slice(0, 10)) {
+  for (const f of [0.8, 1, 1.25]) {
+    finalists.push({ ...params, k0: +(params.k0 * f).toFixed(3) });
+    finalists.push({ ...params, kDecay: +(params.kDecay * f).toFixed(3) });
+  }
+}
+console.log(`Etape 2 : ${finalists.length} reglages finalistes testes sur ${STUDENTS} eleves simules chacun...`);
 let best = null;
-for (const params of grid) {
-  const r = simulate(params, 2000, 42);
+for (const params of finalists) {
+  const r = simulate(params, STUDENTS, 42);
   if (!best || r.logLoss < best.r.logLoss) best = { params, r };
 }
 
 // Verification sur d'autres eleves, jamais vus pendant l'entrainement
-const before = simulate(MiniIA.PARAMS, 3000, 7);
-const after = simulate(best.params, 3000, 7);
+const before = simulate(MiniIA.PARAMS, STUDENTS, 7);
+const after = simulate(best.params, STUDENTS, 7);
 const noBrain = { k0: 0, kMin: 0, kDecay: 0, spread: best.params.spread };
-const blind = simulate(noBrain, 3000, 7);
+const blind = simulate(noBrain, STUDENTS, 7);
 
 console.log('\nMeilleurs reglages :', JSON.stringify(best.params));
-console.log(`Erreur de prediction (plus bas = mieux) : sans apprendre ${blind.logLoss.toFixed(3)} | reglages actuels ${before.logLoss.toFixed(3)} | apres entrainement ${after.logLoss.toFixed(3)}`);
-console.log(`Quiz dans la bonne zone (50 a 90 % de reussite) : sans apprendre ${(blind.inZone * 100).toFixed(0)} % | apres entrainement ${(after.inZone * 100).toFixed(0)} %`);
-console.log('Erreur quiz apres quiz (elle apprend l\'eleve) :', after.curve.map((c) => c.toFixed(3)).join(' -> '));
+console.log(`Erreur de prediction (plus bas = mieux) : sans apprendre ${blind.logLoss.toFixed(4)} | reglages actuels ${before.logLoss.toFixed(4)} | apres entrainement ${after.logLoss.toFixed(4)}`);
+console.log(`Quiz dans la bonne zone (50 a 90 % de reussite) : sans apprendre ${(blind.inZone * 100).toFixed(1)} % | apres entrainement ${(after.inZone * 100).toFixed(1)} %`);
+console.log("Erreur quiz apres quiz (elle apprend l'eleve) :", after.curve.map((c) => c.toFixed(3)).join(' -> '));
