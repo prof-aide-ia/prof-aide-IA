@@ -60,7 +60,7 @@ for (const k0 of [0.05, 0.1, 0.15, 0.2, 0.3, 0.45])
       for (const spread of [1, 1.5, 2])
         grid.push({ k0, kMin, kDecay, spread });
 
-const STUDENTS = 50000;
+const STUDENTS = 500000;
 
 // Etape 1 : tri rapide de tous les reglages sur 2000 eleves
 console.log(`Etape 1 : ${grid.length} reglages testes sur 2000 eleves simules chacun...`);
