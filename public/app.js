@@ -614,6 +614,9 @@ const I18N = {
     ecoleBtn: "🏫 Mon école de rêve", tableauTitle: "🎓 Tableau", gommeTitle: "Gomme", effacerBtn: "🗑 Effacer",
     quizLaunchBtnQcm: "🎯 QCM comme avant (⭐ 25/bonne réponse)", quizLaunchBtnEval: "📋 Évaluation complète (⭐ 30/bonne réponse)",
     quizLaunchBtnEcrit: "✍️ Réponses écrites (⭐ 25-50/bonne réponse)", quizWrittenPlaceholder: "Écris ta réponse...",
+    interroBtnStart: "🗣️ Le prof m'interroge", interroBtnStop: "⏹️ Arrêter l'interrogation",
+    interroStartMsg: "Interroge-moi ! Pose-moi des questions une par une sur cette matière.",
+    interroStopMsg: "On arrête l'interrogation, fais-moi un petit bilan.",
     quizValidateBtn: "Valider", quizValidateAllBtn: "Valider mes réponses",
     videoWatchedReward: "🎉 Vidéo entièrement regardée ! +{n} étoiles",
     gamesBtn: "🎮 Jeux vidéo", gamesHeaderTitle: "🎮 Jeux vidéo", gamePriceLabel: "Prix d'entrée",
@@ -686,6 +689,9 @@ const I18N = {
     ecoleBtn: "🏫 My Dream School", tableauTitle: "🎓 Board", gommeTitle: "Eraser", effacerBtn: "🗑 Clear",
     quizLaunchBtnQcm: "🎯 Classic multiple choice (⭐ 25/correct answer)", quizLaunchBtnEval: "📋 Full evaluation (⭐ 30/correct answer)",
     quizLaunchBtnEcrit: "✍️ Written answers (⭐ 25-50/correct answer)", quizWrittenPlaceholder: "Write your answer...",
+    interroBtnStart: "🗣️ Quiz me out loud", interroBtnStop: "⏹️ Stop the questions",
+    interroStartMsg: "Quiz me! Ask me questions one at a time on this subject.",
+    interroStopMsg: "Let's stop the questions, give me a short summary.",
     quizValidateBtn: "Check", quizValidateAllBtn: "Check my answers",
     videoWatchedReward: "🎉 Video fully watched! +{n} stars",
     gamesBtn: "🎮 Video games", gamesHeaderTitle: "🎮 Video games", gamePriceLabel: "Entry price",
@@ -1765,6 +1771,32 @@ document.querySelectorAll('.mode-tab').forEach(tab => {
   });
 });
 
+// ============ Mode "Le prof m'interroge" ============
+// C'est le prof qui pose les questions une par une ; l'eleve repond a la voix ou par ecrit
+let interroActive = false;
+const interroBtn = document.getElementById('interroBtn');
+
+function setInterroButton() {
+  interroBtn.dataset.i18n = interroActive ? 'interroBtnStop' : 'interroBtnStart';
+  interroBtn.textContent = t(interroBtn.dataset.i18n);
+  interroBtn.classList.toggle('active', interroActive);
+}
+
+interroBtn.addEventListener('click', async () => {
+  if (!interroActive) {
+    interroActive = true;
+    setInterroButton();
+    // Bascule sur l'onglet Voix (ou Ecrire si pas de micro) pour que l'eleve puisse repondre
+    const answerTab = document.querySelector(`.mode-tab[data-mode="${recognition ? 'voix' : 'ecrire'}"]`);
+    if (answerTab) answerTab.click();
+    await askProf(t('interroStartMsg'));
+  } else {
+    await askProf(t('interroStopMsg'));
+    interroActive = false;
+    setInterroButton();
+  }
+});
+
 document.querySelectorAll('.question-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     showEleveLine(chip.textContent);
@@ -1913,12 +1945,23 @@ function showError(text) {
 }
 
 // ============ Voix ============
-const FEMALE_NAME_HINTS = ['julie', 'hortense', 'denise', 'amelie', 'audrey', 'celine', 'female', 'femme'];
-const MALE_NAME_HINTS = ['paul', 'guillaume', 'thomas', 'nicolas', 'henri', 'male', 'homme'];
+// Prenoms des voix (dont les voix naturelles d'Edge) dans les 15 langues du site
+const FEMALE_NAME_HINTS = ['julie', 'hortense', 'denise', 'eloise', 'vivienne', 'amelie', 'audrey', 'celine', 'jenny', 'aria', 'ava', 'emma', 'michelle', 'samantha', 'zira',
+  'elvira', 'helena', 'katja', 'amala', 'hedda', 'elsa', 'isabella', 'nanami', 'haruka', 'sunhi', 'heami', 'xiaoxiao', 'xiaoyi', 'huihui', 'raquel', 'fernanda',
+  'svetlana', 'irina', 'zariyah', 'swara', 'kalpana', 'nabanita', 'uzma', 'gadis', 'female', 'femme'];
+const MALE_NAME_HINTS = ['paul', 'guillaume', 'thomas', 'nicolas', 'henri', 'remy', 'jerome', 'guy', 'andrew', 'brian', 'christopher', 'eric', 'david', 'mark',
+  'alvaro', 'pablo', 'conrad', 'stefan', 'diego', 'cosimo', 'keita', 'ichiro', 'injoon', 'yunxi', 'yunyang', 'kangkang', 'duarte', 'dmitry', 'pavel',
+  'hamed', 'madhur', 'hemant', 'pradeep', 'asad', 'ardi', 'male', 'homme'];
 // Les voix "Online (Natural)"/"Neural" (disponibles surtout dans Microsoft Edge) sonnent bien plus
 // humaines que les vieilles voix locales (ex: Microsoft Hortense/Paul, assez mécaniques). On les
 // prefere des qu'elles existent.
 const NATURAL_NAME_HINTS = ['natural', 'online', 'neural'];
+
+// 'female' contient 'male' : on verifie les mots entiers pour ne pas confondre
+function voiceMatches(voice, hints) {
+  const words = voice.name.toLowerCase().split(/[^a-z]+/);
+  return hints.some(h => words.includes(h));
+}
 
 function pickVoice(g) {
   const langPrefix = profLanguage.code.split('-')[0];
@@ -1928,15 +1971,18 @@ function pickVoice(g) {
   const isNatural = (v) => NATURAL_NAME_HINTS.some(h => v.name.toLowerCase().includes(h));
 
   // 1. Voix naturelle qui correspond au genre choisi
-  const naturalGendered = voices.find(v => isNatural(v) && hints.some(h => v.name.toLowerCase().includes(h)));
+  const naturalGendered = voices.find(v => isNatural(v) && voiceMatches(v, hints));
   if (naturalGendered) return naturalGendered;
   // 2. N'importe quelle voix naturelle
   const natural = voices.find(isNatural);
   if (natural) return natural;
-  // 3. Voix locale qui correspond au genre choisi
-  const gendered = voices.find(v => hints.some(h => v.name.toLowerCase().includes(h)));
+  // 3. Voix Google (Chrome), plus agreables que les vieilles voix locales
+  const google = voices.find(v => v.name.toLowerCase().includes('google'));
+  if (google) return google;
+  // 4. Voix locale qui correspond au genre choisi
+  const gendered = voices.find(v => voiceMatches(v, hints));
   if (gendered) return gendered;
-  // 4. Repli : la premiere voix francaise disponible
+  // 5. Repli : la premiere voix disponible dans la langue
   return voices[0];
 }
 
@@ -2039,7 +2085,7 @@ async function askProf(eleveText) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ messages: history, grade, subject: subject.label, language: profLanguage.label, profile: MiniIA.profile(miniIA, subject.label) }),
+      body: JSON.stringify({ messages: history, grade, subject: subject.label, language: profLanguage.label, profile: MiniIA.profile(miniIA, subject.label), interro: interroActive }),
     });
     const data = await res.json();
 
