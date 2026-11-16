@@ -379,6 +379,9 @@ const DB_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const USE_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_KEY);
 const USE_UPSTASH = !USE_SUPABASE && Boolean(DB_URL && DB_TOKEN);
 
+// Derniere erreur de la base de donnees, pour le diagnostic (ne contient jamais la cle)
+let lastDbError = null;
+
 // Supabase : une table "comptes" avec une colonne key (le prenom simplifie) et data (le compte)
 async function supabaseRequest(query, options = {}) {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/comptes${query}`, {
@@ -391,7 +394,10 @@ async function supabaseRequest(query, options = {}) {
       ...options.headers,
     },
   });
-  if (!response.ok) throw new Error(`Supabase : erreur ${response.status} ${await response.text()}`);
+  if (!response.ok) {
+    lastDbError = `Supabase : erreur ${response.status} ${(await response.text()).slice(0, 300)}`;
+    throw new Error(lastDbError);
+  }
   return response;
 }
 
@@ -555,6 +561,18 @@ app.post('/api/account/brain', safe(async (req, res) => {
   await writeAccount(account);
   res.json({ ok: true });
 }));
+
+// Diagnostic : quelle base garde les comptes, et sa derniere erreur (aucun secret affiche)
+app.get('/api/account/storage', (req, res) => {
+  let host = null;
+  try { host = SUPABASE_URL ? new URL(SUPABASE_URL).host : null; } catch { host = 'adresse invalide'; }
+  res.json({
+    storage: USE_SUPABASE ? 'supabase' : USE_UPSTASH ? 'upstash' : 'fichiers (effaces au redemarrage)',
+    supabaseHost: host,
+    keyType: SUPABASE_KEY ? (SUPABASE_KEY.startsWith('sb_secret_') ? 'secret' : SUPABASE_KEY.startsWith('sb_publishable_') ? 'publishable (mauvaise cle)' : SUPABASE_KEY.startsWith('eyJ') ? 'ancienne cle (eyJ)' : 'inconnue') : null,
+    lastError: lastDbError,
+  });
+});
 
 app.listen(PORT, () => {
   console.log(`Maitresse virtuelle disponible sur http://localhost:${PORT}`);
