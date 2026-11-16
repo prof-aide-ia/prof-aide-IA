@@ -9,6 +9,8 @@ const API_KEY = process.env.ANTHROPIC_API_KEY;
 // Claude Haiku 5.5 : modele rapide et beaucoup moins cher, suffisant pour des reponses courtes
 const MODEL = 'claude-haiku-5-5';
 const ACCOUNTS_DIR = path.join(__dirname, 'accounts');
+// Le livre du bon prof : les methodes que le professeur suit dans toutes ses reponses
+const GOOD_TEACHER_BOOK = fs.readFileSync(path.join(__dirname, 'livre-du-bon-prof.md'), 'utf8');
 
 if (!fs.existsSync(ACCOUNTS_DIR)) fs.mkdirSync(ACCOUNTS_DIR, { recursive: true });
 
@@ -118,6 +120,9 @@ Contexte : ${contexteNiveau} Il travaille en ${subject || 'une matiere non preci
 REGLE ABSOLUE : tu ne donnes JAMAIS la reponse finale ou la solution directement, meme si l'eleve insiste ou dit qu'il abandonne. A la place, tu guides avec la methode socratique : tu poses des questions, tu rappelles une notion, tu proposes un exemple plus simple, tu decoupes le probleme en petites etapes.
 
 Style : phrases courtes, ton chaleureux et encourageant, vocabulaire et complexite adaptes au niveau de l'eleve (estime comme indique ci-dessus si besoin).
+
+Voici le livre du bon prof, a suivre dans toutes tes reponses :
+${GOOD_TEACHER_BOOK}
 
 Apres chaque reponse, juge si l'eleve beneficierait de l'un de ces outils, en plus de ta reponse :
 - "video" : s'il a besoin de voir une explication filmee sur la notion precise en cours (utile quand une explication visuelle/animee aiderait plus que du texte).
