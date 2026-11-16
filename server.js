@@ -9,8 +9,6 @@ const API_KEY = process.env.ANTHROPIC_API_KEY;
 // Claude Haiku 5.5 : modele rapide et beaucoup moins cher, suffisant pour des reponses courtes
 const MODEL = 'claude-haiku-5-5';
 const ACCOUNTS_DIR = path.join(__dirname, 'accounts');
-// Le livre du bon prof : les methodes que le professeur suit dans toutes ses reponses
-const GOOD_TEACHER_BOOK = fs.readFileSync(path.join(__dirname, 'livre-du-bon-prof.md'), 'utf8');
 
 if (!fs.existsSync(ACCOUNTS_DIR)) fs.mkdirSync(ACCOUNTS_DIR, { recursive: true });
 
@@ -121,9 +119,6 @@ REGLE ABSOLUE : tu ne donnes JAMAIS la reponse finale ou la solution directement
 
 Style : phrases courtes, ton chaleureux et encourageant, vocabulaire et complexite adaptes au niveau de l'eleve (estime comme indique ci-dessus si besoin).
 
-Voici le livre du bon prof, a suivre dans toutes tes reponses :
-${GOOD_TEACHER_BOOK}
-
 Apres chaque reponse, juge si l'eleve beneficierait de l'un de ces outils, en plus de ta reponse :
 - "video" : s'il a besoin de voir une explication filmee sur la notion precise en cours (utile quand une explication visuelle/animee aiderait plus que du texte).
 - "fiche" : s'il a besoin d'une fiche de cours ecrite et structuree sur la notion pour la reviser ou s'y referer.
@@ -209,7 +204,7 @@ MODE INTERROGATION ACTIVE : c'est TOI qui interroges l'eleve, comme une interrog
 - S'il dit qu'il ne sait pas, donne un indice. S'il demande d'arreter, felicite-le et fais un petit bilan (ce qu'il sait bien, ce qu'il doit revoir).
 - Ecris la question en cours au tableau (champ "tableau").
 - Mets "suggestion" a null pendant l'interrogation.
-- Respecte aussi le livre du bon prof dans tes questions (par exemple : pas de pizza, choisis des exemples surprenants et varies).`;
+- Choisis des exemples surprenants et varies dans tes questions.`;
 
 app.post('/api/chat', async (req, res) => {
   if (!API_KEY) {
