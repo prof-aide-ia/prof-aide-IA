@@ -722,7 +722,7 @@ async function checkLogin(name, code) {
 }
 
 // Compte(s) administrateur : le proprietaire du site a des etoiles illimitees (ADMIN_NAMES pour en changer)
-const ADMIN_KEYS = String(process.env.ADMIN_NAMES || 'admin,adimi').split(',').map((n) => nameKey(n)).filter(Boolean);
+const ADMIN_KEYS = String(process.env.ADMIN_NAMES || 'adimi').split(',').map((n) => nameKey(n)).filter(Boolean);
 function isAdminAccount(a) {
   return Boolean(a && ADMIN_KEYS.includes(a.key));
 }
