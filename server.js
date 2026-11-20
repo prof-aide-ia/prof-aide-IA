@@ -10,6 +10,12 @@ const API_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = 'claude-haiku-5-5';
 const ACCOUNTS_DIR = path.join(__dirname, 'accounts');
 
+// Interrupteur : MON_IA_PARTOUT=oui dans le fichier .env => Mon IA (public/mon-ia.js) remplace Claude
+// dans tout le site (prof, quiz, evaluations, fiches, videos). Sans cette ligne, c'est Claude comme avant.
+const MON_IA_PARTOUT = /^(oui|yes|1|true)$/i.test(String(process.env.MON_IA_PARTOUT || '').trim());
+// Les regles de Toto (le meme fichier sert au site et au serveur)
+const REGLES_TOTO = require('./public/regles-toto.js');
+
 if (!fs.existsSync(ACCOUNTS_DIR)) fs.mkdirSync(ACCOUNTS_DIR, { recursive: true });
 
 app.use(express.json({ limit: '200kb' }));
@@ -22,7 +28,55 @@ const aiHits = new Map();
 let aiDayCount = 0;
 let aiDayStart = Date.now();
 app.set('trust proxy', 1); // derriere l'hebergeur, req.ip doit etre l'IP du visiteur et pas celle du proxy
-app.use(['/api/chat', '/api/quiz', '/api/fiche', '/api/video-search'], (req, res, next) => {
+// ============ Mon IA apprend de Claude ============
+// Quand Mon IA ne connait pas la reponse, elle demande a Claude ("fais-le, je n'y arrive pas"),
+// puis garde sa reponse dans savoir-appris.json : la prochaine fois, elle repond toute seule.
+const APPRIS_FILE = path.join(__dirname, 'savoir-appris.json');
+const APPRIS_MAX = 3000;
+// Sur Render, les fichiers sont effaces a chaque redemarrage : le savoir appris est donc garde dans la
+// meme base que les comptes (Supabase). Le fichier savoir-appris.json sert seulement de point de depart.
+const APPRIS_KEY = '_savoir_appris';
+let apprisCache = null;
+async function readAppris() {
+  if (apprisCache) return apprisCache;
+  const stored = await readAccount(APPRIS_KEY);
+  if (stored && Array.isArray(stored.list)) apprisCache = stored.list;
+  else {
+    try { apprisCache = JSON.parse(fs.readFileSync(APPRIS_FILE, 'utf8')); } catch { apprisCache = []; }
+  }
+  return apprisCache;
+}
+async function writeAppris(list) {
+  apprisCache = list.slice(-APPRIS_MAX);
+  await writeAccount({ key: APPRIS_KEY, list: apprisCache });
+}
+const stripAcc = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+const GENERIC_WORDS = new Set(['cours', 'question', 'eleve', 'prof', 'reponse', 'exemple', 'faire', 'comment', 'pourquoi', 'quoi', 'chose', 'truc', 'etre', 'avoir', 'aide']);
+
+// Le savoir appris, servi comme un fichier de savoir de plus (charge par index.html)
+app.get('/savoir/appris.js', async (req, res) => {
+  res.type('application/javascript');
+  res.set('Cache-Control', 'no-store');
+  res.send(`// Ce que Mon IA a appris du prof Claude (fichier savoir-appris.json)
+(function (root) {
+  const S = root.MON_IA_SAVOIR = root.MON_IA_SAVOIR || { notions: [], banks: {}, matieres: {} };
+  S.notions.push(...${JSON.stringify(await readAppris()).replace(/</g, '\\u003c')});
+})(typeof window !== 'undefined' ? window : globalThis);
+`);
+});
+
+// Le site demande au demarrage qui fait le prof : Claude ou Mon IA
+app.get('/api/config', (req, res) => {
+  res.json({ monIAPartout: MON_IA_PARTOUT });
+});
+
+// Quand Mon IA remplace Claude, on n'appelle plus jamais Claude (le credit ne bouge plus)
+app.use(['/api/chat', '/api/quiz', '/api/fiche'], (req, res, next) => {
+  if (MON_IA_PARTOUT) return res.status(403).json({ error: 'Mon IA remplace Claude sur ce site.' });
+  next();
+});
+
+app.use(['/api/chat', '/api/quiz', '/api/fiche', '/api/video-search', '/api/demande-claude'], (req, res, next) => {
   const now = Date.now();
   if (now - aiDayStart > 86400000) { aiDayStart = now; aiDayCount = 0; }
   if (aiDayCount >= AI_LIMIT_PER_DAY) {
@@ -73,6 +127,77 @@ async function callClaude(system, messages, maxTokens) {
   let rawText = textBlock?.text ?? '';
   rawText = rawText.replace(/^```json\s*|```\s*$/g, '').trim();
   return rawText;
+}
+
+// ============ Recherche internet sur des sites FIABLES seulement ============
+// Seuls ces sites peuvent etre utilises (ecrits par des profs, des scientifiques ou des organismes
+// officiels). Wikipedia, Vikidia, les forums (Reddit, Quora, Brainly...) ne sont PAS dans la liste,
+// donc ils sont impossibles a utiliser : tout le monde peut y ecrire n'importe quoi.
+// (63 sites max : c'est la limite de l'outil de recherche ; les sous-domaines sont inclus.)
+const TRUSTED_SITES = [
+  // Ecole et cours
+  'education.gouv.fr', 'eduscol.education.fr', 'reseau-canope.fr', 'onisep.fr', 'alloprof.qc.ca',
+  'schoolmouv.fr', 'kartable.fr', 'maxicours.com', 'assistancescolaire.com', 'lesbonsprofs.com', 'khanacademy.org',
+  // Dictionnaires et encyclopedies redigees par des experts
+  'larousse.fr', 'universalis.fr', 'britannica.com', 'cnrtl.fr', 'lerobert.com', 'academie-francaise.fr', 'bescherelle.com',
+  'dictionary.cambridge.org', 'merriam-webster.com', 'rae.es', 'duden.de',
+  // Sciences
+  'cnrs.fr', 'cea.fr', 'inserm.fr', 'pasteur.fr', 'inrae.fr', 'ifremer.fr', 'mnhn.fr', 'cite-sciences.fr',
+  'cnes.fr', 'esa.int', 'nasa.gov', 'meteofrance.com', 'ign.fr', 'futura-sciences.com', 
+  'nationalgeographic.com',
+  // Sante
+  'ameli.fr', 'santepubliquefrance.fr', 'who.int',
+  // Histoire, societe, institutions
+  'vie-publique.fr', 'service-public.fr', 'insee.fr', 'assemblee-nationale.fr', 'senat.fr', 'elysee.fr',
+  'conseil-constitutionnel.fr', 'europa.eu', 'un.org', 'unesco.org', 'bnf.fr', 'histoire-image.org', 'louvre.fr',
+  'chateauversailles.fr',
+];
+
+// Comme callClaude, mais Claude peut chercher sur internet (uniquement les sites fiables ci-dessus).
+// Renvoie { text, sources } ; sources = les pages fiables que Claude a lues.
+async function callClaudeWeb(system, messages, maxTokens) {
+  const convo = [...messages];
+  const sources = [];
+  let text = '';
+  // "pause_turn" : la recherche a pris du temps, on relance pour que Claude termine (2 fois max)
+  for (let i = 0; i < 3; i++) {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: maxTokens,
+        system,
+        messages: convo,
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2, allowed_domains: TRUSTED_SITES }],
+      }),
+    });
+    if (!response.ok) {
+      console.error('Erreur API Anthropic (recherche web):', response.status, await response.text());
+      throw new Error('claude_error');
+    }
+    const data = await response.json();
+    for (const block of data.content || []) {
+      if (block.type === 'text') text += block.text;
+      // Une erreur de recherche arrive comme un objet (pas une liste) : on l'ignore simplement
+      if (block.type === 'web_search_tool_result' && Array.isArray(block.content)) {
+        for (const r of block.content) if (r.url && !sources.some((s) => s.url === r.url)) sources.push({ url: r.url, title: r.title || '' });
+      }
+    }
+    if (data.stop_reason !== 'pause_turn') break;
+    convo.push({ role: 'assistant', content: data.content });
+  }
+  // Le JSON est parfois entoure de phrases : on garde ce qu'il y a entre la premiere { et la derniere }
+  const start = text.indexOf('{'), end = text.lastIndexOf('}');
+  return { text: start >= 0 && end > start ? text.slice(start, end + 1) : text.trim(), sources };
+}
+
+// Garde-fou : une source n'est acceptee que si elle vient vraiment d'un site de la liste
+function isTrustedUrl(url) {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    return TRUSTED_SITES.some((d) => host === d || host.endsWith('.' + d));
+  } catch { return false; }
 }
 
 function languageInstruction(language) {
@@ -236,6 +361,74 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// Mon IA ne sait pas : Claude repond, sous forme de "notion" que Mon IA garde en memoire.
+// (Autorise meme quand MON_IA_PARTOUT=oui : c'est l'aide de secours de Mon IA.)
+app.post('/api/demande-claude', async (req, res) => {
+  if (!API_KEY) return res.status(500).json({ error: 'Le prof Claude n\'est pas disponible (pas de cle API).' });
+  const { question, grade, subject } = req.body;
+  if (typeof question !== 'string' || !question.trim()) return res.status(400).json({ error: 'question manquante' });
+  const q = question.trim().slice(0, 300);
+  // Les regles de Toto s'appliquent aussi ici : une question interdite n'est jamais envoyee a Claude
+  // (et les infos personnelles d'un eleve ne quittent jamais le site)
+  const regle = REGLES_TOTO.verifier(q);
+  if (regle) return res.json({ notion: { mots: [], texte: regle.reponse }, appris: false });
+
+  const system = `Tu aides "Toto", la petite IA de prof d'un site d'aide aux devoirs. Elle ne connaissait pas la reponse a la question d'un eleve${grade ? ` de ${grade}` : ''} (matiere : ${subject || 'non precisee'}), alors c'est toi qui reponds. Ta reponse sera gardee par Toto pour qu'elle sache repondre toute seule la prochaine fois.
+
+Explique la notion simplement, avec un ton chaleureux de prof (tutoiement, phrases courtes, mots adaptes a son age). Donne un exemple concret de la vie de tous les jours. Si la question est un exercice precis (un calcul, une question de devoir), NE donne PAS le resultat final : explique la methode a la place.
+
+Pour etre sur de ne pas te tromper, fais d'abord une recherche internet (seuls des sites fiables sont autorises : sites scolaires, dictionnaires, organismes scientifiques et officiels). Appuie ton explication sur ce que tu y trouves.
+
+Reponds UNIQUEMENT avec un objet JSON valide, sans texte autour, au format exact :
+{"mots": ["3 a 6 mots-cles en minuscules sans accents, precis, que l'eleve pourrait utiliser pour reposer cette question"], "titre": "titre court de la notion", "texte": "explication en 1 a 3 phrases", "exemple": "un exemple concret de la vie de tous les jours", "astuce": "une astuce pour retenir", "tableau": "resume de 60 caracteres max", "source": "l'adresse de la page fiable la plus utile, ou null"}
+Si la question n'a rien a voir avec l'ecole ou n'est pas correcte, reponds {"hors_sujet": true, "texte": "une phrase gentille pour ramener l'eleve vers ses devoirs"}.`;
+
+  try {
+    // D'abord avec la recherche sur les sites fiables ; si la recherche n'est pas disponible, sans elle
+    let raw, sources = [];
+    try {
+      ({ text: raw, sources } = await callClaudeWeb(system, [{ role: 'user', content: q }], 1500));
+    } catch {
+      raw = await callClaude(system, [{ role: 'user', content: q }], 700);
+    }
+    let n;
+    try { n = JSON.parse(raw); } catch { return res.status(502).json({ error: 'Reponse de Claude invalide.' }); }
+    // La source affichee doit etre une page fiable que Claude a VRAIMENT lue pendant sa recherche
+    // (jamais une adresse qu'il aurait juste ecrite de memoire)
+    const read = sources.filter((s) => isTrustedUrl(s.url));
+    const claimed = typeof n.source === 'string' ? read.find((s) => s.url === n.source || n.source.startsWith(s.url) || s.url.startsWith(n.source)) : null;
+    const source = (claimed || read[0] || {}).url || null;
+    if (!n || typeof n.texte !== 'string') return res.status(502).json({ error: 'Reponse de Claude invalide.' });
+    if (n.hors_sujet) return res.json({ notion: { mots: [], texte: n.texte.slice(0, 400) }, appris: false });
+
+    const mots = (Array.isArray(n.mots) ? n.mots : [])
+      .map(stripAcc).filter((m) => m.length >= 3 && m.length <= 40 && !GENERIC_WORDS.has(m)).slice(0, 6);
+    const clean = (s, max) => (typeof s === 'string' ? s.trim().slice(0, max) : undefined);
+    const notion = {
+      mots, titre: clean(n.titre, 60), texte: clean(n.texte, 600), exemple: clean(n.exemple, 400),
+      astuce: clean(n.astuce, 300), tableau: clean(n.tableau, 70), quiz: [], source,
+      appris: new Date().toISOString().slice(0, 10), question: q, sujet: clean(subject, 60),
+    };
+    // Toto ne garde jamais une reponse qui enfreint ses regles (gros mot, sujet interdit, Wikipedia...)
+    const interdit = REGLES_TOTO.reponseInterdite([notion.texte, notion.exemple, notion.astuce, notion.tableau].join(' '));
+    if (interdit) return res.json({ notion: { mots: [], texte: 'Je préfère ne pas répondre à ça. Pose-moi une autre question sur tes cours !' }, appris: false });
+    // On garde la notion (sans doublon) pour que Toto s'en souvienne
+    let appris = false;
+    if (mots.length) {
+      const list = [...(await readAppris())];
+      if (!list.some((x) => x.mots && x.mots[0] === mots[0])) {
+        list.push(notion);
+        await writeAppris(list);
+        appris = true;
+      }
+    }
+    res.json({ notion, appris });
+  } catch (err) {
+    console.error(err);
+    res.status(502).json({ error: 'Le prof Claude n\'a pas pu repondre.' });
+  }
+});
+
 app.post('/api/quiz', async (req, res) => {
   if (!API_KEY) {
     return res.status(500).json({ error: "Cle API manquante. Configure ANTHROPIC_API_KEY dans le fichier .env du serveur." });
@@ -360,6 +553,11 @@ async function buildVideoSearchQuery(grade, subject, history, sport) {
   // Pour un sport : une video qui apprend (regles, technique), jamais des matchs ou des buts
   const fallback = sport ? `${subject || ''} regles technique expliquees enfants`.trim() : `${subject || ''} ${grade || ''} cours explication`.trim();
   if (!Array.isArray(history) || history.length === 0) return fallback;
+  // Mon IA a la place de Claude : on cherche avec la derniere question de l'eleve, sans appeler Claude
+  if (MON_IA_PARTOUT) {
+    const last = [...history].reverse().find((m) => m.role === 'user' && typeof m.content === 'string');
+    return last ? `${subject || ''} ${last.content.slice(0, 80)}`.trim() : fallback;
+  }
 
   // La conversation se termine souvent par un message du professeur (assistant) : l'API Claude exige
   // que ca finisse par un message "user", donc on ajoute une derniere consigne explicite a la fin.

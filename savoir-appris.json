@@ -1,0 +1,39 @@
+[
+ {
+  "mots": [
+   "ciel bleu",
+   "couleur du ciel",
+   "lumiere du soleil",
+   "diffusion de la lumiere",
+   "atmosphere"
+  ],
+  "titre": "Pourquoi le ciel est bleu",
+  "texte": "La lumiere du Soleil semble blanche, mais elle contient toutes les couleurs, comme un arc-en-ciel. En traversant l'atmosphere, la lumiere heurte de tres petites particules d'air : la lumiere bleue est renvoyee dans toutes les directions bien plus que les autres couleurs. Quand tu regardes le ciel, tu vois donc cette lumiere bleue qui arrive de partout.",
+  "exemple": "Le soir, quand le Soleil se couche, le ciel devient orange ou rouge : la lumiere traverse alors beaucoup plus d'air, et le bleu est presque tout disperse avant d'arriver jusqu'a toi.",
+  "astuce": "Pense a une balle de ping-pong lancee dans une foule : les petites particules d'air \"rebondissent\" surtout la lumiere bleue, comme une balle qui part dans toutes les directions.",
+  "tableau": "Le ciel est bleu car l'air disperse la lumiere bleue du Soleil dans to",
+  "quiz": [],
+  "source": null,
+  "appris": "2026-11-20",
+  "question": "pourquoi le ciel est bleu",
+  "sujet": "Physique"
+ },
+ {
+  "mots": [
+   "arc en ciel",
+   "arc-en-ciel comment se forme",
+   "lumiere couleurs soleil",
+   "goutte eau prisme"
+  ],
+  "titre": "L'arc-en-ciel",
+  "texte": "Un arc-en-ciel apparaît quand il pleut et que le soleil brille en même temps. La lumière blanche du soleil contient en fait toutes les couleurs, et chaque goutte d'eau la sépare en ses couleurs, un peu comme un prisme.",
+  "exemple": "Avec un tuyau d'arrosage ou un brumisateur en plein soleil, tu peux faire un petit arc-en-ciel : place le soleil derrière ton dos et regarde les gouttes devant toi.",
+  "astuce": "Retiens : soleil dans ton dos, gouttes d'eau devant toi. Les gouttes jouent le rôle de petits prismes.",
+  "tableau": "Soleil + gouttes d'eau = lumière blanche décomposée en couleurs",
+  "quiz": [],
+  "source": "https://meteofrance.com/comprendre-la-meteo/arc-en-ciel/quest-ce-quun-arc-en-ciel",
+  "appris": "2026-11-20",
+  "question": "comment fonctionne un arc en ciel",
+  "sujet": "Physique"
+ }
+]

@@ -171,6 +171,7 @@
           </div>
 
           <div class="extra-buttons">
+            <button id="monIABtn" class="extra-btn interro-btn" data-i18n="monIABtnStart" title="Toto, le prof maison du site">🧠 Toto</button>
             <button id="interroBtn" class="extra-btn interro-btn" data-i18n="interroBtnStart">🗣️ Le prof m'interroge</button>
             <button id="openVideoBtn" class="extra-btn" data-i18n="videoBtn">🎥 Vidéo</button>
             <button id="openFicheBtn" class="extra-btn" data-i18n="ficheBtn">📄 Fiche</button>
@@ -398,6 +399,17 @@
   </div>
 
   <script src="brain.js"></script>
+  <!-- Le savoir de Mon IA (une matiere par fichier, tu peux en ajouter) -->
+  <script src="savoir/sciences.js"></script>
+  <script src="savoir/langues.js"></script>
+  <script src="savoir/societe.js"></script>
+  <script src="savoir/culture.js"></script>
+  <script src="savoir/complements.js"></script>
+  <!-- Ce que Mon IA a appris du prof Claude (fabrique par le serveur) -->
+  <script src="savoir/appris.js"></script>
+  <!-- Les regles de Toto : ce qu'il a le droit de dire et de faire -->
+  <script src="regles-toto.js"></script>
+  <script src="mon-ia.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

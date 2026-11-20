@@ -617,6 +617,8 @@ const I18N = {
     interroBtnStart: "🗣️ Le prof m'interroge", interroBtnStop: "⏹️ Arrêter l'interrogation",
     interroStartMsg: "Interroge-moi ! Pose-moi des questions une par une sur cette matière.",
     interroStopMsg: "On arrête l'interrogation, fais-moi un petit bilan.",
+    monIABtnStart: "🧠 Toto", monIABtnStop: "⏹️ Arrêter Toto",
+    monIARelay: "Le prof Claude ne répond pas, Toto prend le relais !",
     quizValidateBtn: "Valider", quizValidateAllBtn: "Valider mes réponses",
     videoWatchedReward: "🎉 Vidéo entièrement regardée ! +{n} étoiles",
     gamesBtn: "🎮 Jeux vidéo", gamesHeaderTitle: "🎮 Jeux vidéo", gamePriceLabel: "Prix d'entrée",
@@ -692,6 +694,8 @@ const I18N = {
     interroBtnStart: "🗣️ Quiz me out loud", interroBtnStop: "⏹️ Stop the questions",
     interroStartMsg: "Quiz me! Ask me questions one at a time on this subject.",
     interroStopMsg: "Let's stop the questions, give me a short summary.",
+    monIABtnStart: "🧠 Toto", monIABtnStop: "⏹️ Stop Toto",
+    monIARelay: "The Claude teacher isn't answering, Toto takes over!",
     quizValidateBtn: "Check", quizValidateAllBtn: "Check my answers",
     videoWatchedReward: "🎉 Video fully watched! +{n} stars",
     gamesBtn: "🎮 Video games", gamesHeaderTitle: "🎮 Video games", gamePriceLabel: "Entry price",
@@ -1819,7 +1823,14 @@ function setInterroButton() {
 }
 
 interroBtn.addEventListener('click', async () => {
+  // Mon IA a la place de Claude : c'est elle qui interroge
+  if (monIAPartout) {
+    const answerTab = document.querySelector(`.mode-tab[data-mode="${recognition ? 'voix' : 'ecrire'}"]`);
+    if (answerTab) answerTab.click();
+    return askMonIA(monIAState.current ? 'stop' : 'interroge-moi');
+  }
   if (!interroActive) {
+    if (monIAActive) setMonIA(false);
     interroActive = true;
     setInterroButton();
     // Bascule sur l'onglet Voix (ou Ecrire si pas de micro) pour que l'eleve puisse repondre
@@ -1830,6 +1841,96 @@ interroBtn.addEventListener('click', async () => {
     await askProf(t('interroStopMsg'));
     interroActive = false;
     setInterroButton();
+  }
+});
+
+// ============ Mon IA : le prof maison (public/mon-ia.js) ============
+// Elle tourne dans le navigateur, sans Claude ni cle API : elle interroge l'eleve, corrige, donne
+// des indices et explique les notions. Elle prend aussi le relais si Claude ne repond pas.
+let monIAActive = false;
+const monIAState = MonIA.newState();
+const monIABtn = document.getElementById('monIABtn');
+
+// Interrupteur MON_IA_PARTOUT (fichier .env du serveur) : si "oui", Mon IA remplace Claude partout.
+// Eteint par defaut : tant qu'il n'est pas a "oui", le site marche avec Claude comme avant.
+let monIAPartout = false;
+fetch('/api/config').then((r) => r.json()).then((cfg) => {
+  monIAPartout = !!(cfg && cfg.monIAPartout);
+  if (monIAPartout) monIABtn.style.display = 'none'; // plus besoin du bouton : c'est toujours elle
+}).catch(() => {});
+
+function setMonIA(on) {
+  monIAActive = on;
+  monIABtn.dataset.i18n = on ? 'monIABtnStop' : 'monIABtnStart';
+  monIABtn.textContent = t(monIABtn.dataset.i18n);
+  monIABtn.classList.toggle('active', on);
+  if (on && interroActive) { interroActive = false; setInterroButton(); }
+}
+
+async function askMonIA(eleveText) {
+  setStatus('thinking', t('statusThinking'));
+  suggestionChip.style.display = 'none';
+  await new Promise((r) => setTimeout(r, 350)); // le temps de "reflechir", pour que ce soit naturel
+  const r = MonIA.reply(eleveText, monIAState, { subject: subject.label, grade, brain: miniIA, MiniIA });
+  saveBrain();
+  // On garde la conversation (pour la fiche, la video, et Claude s'il reprend la main)
+  if (eleveText) {
+    history.push({ role: 'user', content: eleveText });
+    history.push({ role: 'assistant', content: JSON.stringify({ reponse: r.reponse, tableau: r.tableau || null }) });
+  }
+  bubbleText.textContent = r.reponse;
+  writeOnBoard(r.tableau);
+  if (r.stop) setMonIA(false);
+  if (r.askClaude) {
+    speak(r.reponse);
+    return askClaudeForMonIA(r.askClaude);
+  }
+  await speak(r.reponse);
+  setStatus(null, t('statusWaiting'));
+}
+
+// Mon IA ne sait pas : elle demande au prof Claude, montre sa reponse et l'apprend pour la prochaine fois
+async function askClaudeForMonIA(question) {
+  setStatus('thinking', t('statusThinking'));
+  try {
+    const res = await fetch('/api/demande-claude', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ question, grade, subject: subject.label }),
+    });
+    const data = await res.json();
+    if (data.error || !data.notion) throw new Error(data.error || 'pas de reponse');
+    const n = data.notion;
+    if (data.appris) MonIA.learn(n);
+    const texte = n.mots && n.mots.length ? MonIA.explainLearned(n) : n.texte;
+    const merci = data.appris ? ' (Merci prof Claude, maintenant je le sais !)' : '';
+    // La source (un site fiable) est affichee mais pas lue a voix haute
+    let site = '';
+    try { if (n.source) site = ` 📚 Source : ${new URL(n.source).hostname.replace(/^www\./, '')}`; } catch (e) { /* pas de source */ }
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+    bubbleText.textContent = `🎓 Le prof Claude explique : ${texte}${merci}${site}`;
+    writeOnBoard(n.tableau || null);
+    history.push({ role: 'assistant', content: JSON.stringify({ reponse: texte, tableau: n.tableau || null }) });
+    await speak(texte);
+  } catch (err) {
+    console.error(err);
+    const msg = "Je ne sais pas encore répondre à ça, et le prof Claude n'est pas disponible pour le moment. Essaie avec d'autres mots, par exemple « c'est quoi une fraction ? ».";
+    bubbleText.textContent = msg;
+    await speak(msg);
+  }
+  setStatus(null, t('statusWaiting'));
+}
+
+monIABtn.addEventListener('click', async () => {
+  if (!monIAActive) {
+    setMonIA(true);
+    const answerTab = document.querySelector(`.mode-tab[data-mode="${recognition ? 'voix' : 'ecrire'}"]`);
+    if (answerTab) answerTab.click();
+    monIAState.current = null; // repart sur une nouvelle interrogation
+    await askMonIA('');
+  } else {
+    await askMonIA('stop');
+    setMonIA(false);
   }
 });
 
@@ -2113,6 +2214,7 @@ function showSuggestion(kind) {
 
 // ============ Appel au serveur (Claude) ============
 async function askProf(eleveText) {
+  if (monIAActive || monIAPartout) return askMonIA(eleveText);
   history.push({ role: 'user', content: eleveText });
   setStatus('thinking', t('statusThinking'));
   suggestionChip.style.display = 'none';
@@ -2126,9 +2228,12 @@ async function askProf(eleveText) {
     const data = await res.json();
 
     if (data.error) {
-      showError(data.error);
-      setStatus(null, t('statusWaiting'));
-      return;
+      // Claude ne peut pas repondre (pas de cle, limite du jour...) : Mon IA prend le relais
+      history.pop();
+      showError(`${data.error} ${t('monIARelay')}`);
+      setMonIA(true);
+      monIAState.current = null;
+      return askMonIA(eleveText);
     }
 
     history.push({ role: 'assistant', content: JSON.stringify(data) });
@@ -2142,6 +2247,14 @@ async function askProf(eleveText) {
     setStatus(null, t('statusWaiting'));
   } catch (err) {
     console.error(err);
+    // Pas de serveur ou pas d'internet : Mon IA marche quand meme, elle prend le relais
+    if (history.length && history[history.length - 1].role === 'user') {
+      history.pop();
+      showError(`${t('serverError')} ${t('monIARelay')}`);
+      setMonIA(true);
+      monIAState.current = null;
+      return askMonIA(eleveText);
+    }
     showError('Impossible de contacter le serveur.');
     setStatus(null, t('statusWaiting'));
   }
@@ -2361,12 +2474,14 @@ function closeQuiz() {
 
 async function loadQuiz() {
   try {
-    const res = await fetch('/api/quiz', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ grade, subject: subject.label, difficulty: quizDifficulty, language: profLanguage.label, mode: quizMode, history, profile: MiniIA.profile(miniIA, subject.label) }),
-    });
-    const data = await res.json();
+    // Mon IA a la place de Claude : elle fabrique le quiz elle-meme, sans serveur
+    const data = monIAPartout
+      ? MonIA.makeQuiz(subject.label, quizMode, quizDifficulty)
+      : await (await fetch('/api/quiz', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ grade, subject: subject.label, difficulty: quizDifficulty, language: profLanguage.label, mode: quizMode, history, profile: MiniIA.profile(miniIA, subject.label) }),
+      })).json();
 
     if (data.error || !Array.isArray(data.questions) || data.questions.length === 0) {
       quizLoading.textContent = data.error || "Impossible de générer le quiz pour le moment.";
@@ -2475,13 +2590,19 @@ function revealQuizAnswer(chosenIdx) {
   quizNextBtn.textContent = quizIndex < quizQuestions.length - 1 ? 'Suivant →' : 'Voir mon score →';
 }
 
+// Bonne reponse ecrite ? (les quiz de Mon IA donnent aussi la liste des formes acceptees : "3 sur 4", "trois quarts"...)
+function writtenAnswerOk(value, q) {
+  if (fuzzyAnswerMatch(value, q.answer)) return true;
+  return Array.isArray(q.accept) && MonIA.check(value, { answers: q.accept }) !== null;
+}
+
 function revealWrittenAnswer() {
   if (quizAnswered) return;
   quizAnswered = true;
   stopQuizTimer();
 
   const q = quizQuestions[quizIndex];
-  const correct = fuzzyAnswerMatch(quizWrittenInput.value, q.answer);
+  const correct = writtenAnswerOk(quizWrittenInput.value, q);
   learnFromAnswer(quizIndex, correct, 'ecrit');
   quizWrittenInput.disabled = true;
   quizWrittenInput.classList.add(correct ? 'correct' : 'wrong');
@@ -2581,7 +2702,7 @@ quizEvalValidateBtn.addEventListener('click', () => {
   quizQuestions.forEach((q, qi) => {
     if (q.type === 'ecrit') {
       const input = quizEvalList.querySelector(`.quiz-eval-written[data-q="${qi}"]`);
-      const correct = fuzzyAnswerMatch(input.value, q.answer);
+      const correct = writtenAnswerOk(input.value, q);
       learnFromAnswer(qi, correct, 'ecrit');
       input.disabled = true;
       input.classList.add(correct ? 'correct' : 'wrong');
@@ -2796,12 +2917,15 @@ async function openFiche() {
   currentFiche = null;
 
   try {
-    const res = await fetch('/api/fiche', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ grade, subject: subject.label, history, language: profLanguage.label, profile: MiniIA.profile(miniIA, subject.label) }),
-    });
-    const data = await res.json();
+    // Mon IA a la place de Claude : elle ecrit la fiche avec son savoir (et la derniere question de l'eleve)
+    const lastAsked = [...history].reverse().find((m) => m.role === 'user');
+    const data = monIAPartout
+      ? MonIA.makeFiche(subject.label, lastAsked ? lastAsked.content : '')
+      : await (await fetch('/api/fiche', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ grade, subject: subject.label, history, language: profLanguage.label, profile: MiniIA.profile(miniIA, subject.label) }),
+      })).json();
 
     if (data.error) {
       ficheLoading.textContent = data.error;
