@@ -118,10 +118,20 @@
     return 'brainCheerHigh';
   }
 
+  // Memoire commune : avant ses premieres reponses, l'eleve commence avec le niveau moyen des eleves
+  // de sa classe dans cette matiere (au lieu de partir de zero)
+  function setPrior(brain, subject, theta) {
+    if (!Number.isFinite(theta)) return;
+    const s = subjectState(brain, subject);
+    if (s.n > 0) return;
+    s.theta = Math.max(-4, Math.min(4, theta));
+    s.prior = true;
+  }
+
   // Choisit le niveau dont la reussite prevue est la plus proche de l'objectif
   function chooseLevel(brain, subject, guess = 0) {
     const s = brain.subjects[subject];
-    if (!s || s.n < MIN_ANSWERS) return 'normal';
+    if (!s || (s.n < MIN_ANSWERS && !s.prior)) return 'normal';
     // Decourage : on revient a une etape plus facile qu'il va reussir, pour lui redonner confiance
     if (isDiscouraged(s)) return 'facile';
     let best = 'normal';
@@ -155,7 +165,7 @@
       .sort((a, b) => b.mastery - a.mastery);
   }
 
-  const MiniIA = { LEVELS, PARAMS, create, predict, record, activity, totals, profile, endQuiz, encouragement, chooseLevel, mastery, weakest, summary, questionDifficulty };
+  const MiniIA = { LEVELS, PARAMS, create, predict, record, activity, totals, profile, endQuiz, encouragement, setPrior, chooseLevel, mastery, weakest, summary, questionDifficulty };
   if (typeof module !== 'undefined' && module.exports) module.exports = MiniIA;
   else root.MiniIA = MiniIA;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -577,6 +577,48 @@ app.get('/api/account/storage', (req, res) => {
   });
 });
 
+// ============ Memoire commune de la mini-IA ============
+// Chaque mini-IA apprend sur son eleve ; ici, elles mettent en commun ce qu'elles savent, sans aucun
+// nom : pour chaque classe et chaque matiere, le niveau moyen des eleves. Gardee dans la meme base
+// que les comptes (un prenom simplifie ne peut jamais commencer par "_", donc pas de melange).
+const COLLECTIVE_KEY = '_memoire_commune';
+let collectiveCache = null;
+async function getCollective() {
+  if (!collectiveCache) collectiveCache = ((await readAccount(COLLECTIVE_KEY)) || {}).stats || {};
+  return collectiveCache;
+}
+function collectiveGroup(grade, subject) {
+  if (typeof subject !== 'string' || !subject.trim() || subject.length > 60) return null;
+  return `${GRADES.includes(grade) ? grade : 'Autre'}|${subject.trim()}`;
+}
+const collectiveHits = new Map();
+
+app.get('/api/brain/collective', safe(async (req, res) => {
+  const group = collectiveGroup(req.query.grade, req.query.subject);
+  if (!group) return res.status(400).json({ error: 'Donnees invalides' });
+  const g = (await getCollective())[group];
+  res.json(g ? { count: g.count, mean: g.mean } : { count: 0 });
+}));
+
+app.post('/api/brain/collective', safe(async (req, res) => {
+  const { grade, subject, theta } = req.body || {};
+  const group = collectiveGroup(grade, subject);
+  if (!group || !Number.isFinite(theta)) return res.status(400).json({ error: 'Donnees invalides' });
+  // Pas plus de 20 envois par minute et par ordinateur, pour qu'on ne puisse pas fausser la moyenne
+  const now = Date.now();
+  const hits = (collectiveHits.get(req.ip) || []).filter((t) => now - t < 60000);
+  if (hits.length >= 20) return res.status(429).json({ error: 'Trop de requetes' });
+  hits.push(now);
+  collectiveHits.set(req.ip, hits);
+  const stats = await getCollective();
+  const g = stats[group] || (stats[group] = { count: 0, mean: 0 });
+  // Moyenne qui suit les derniers eleves (au-dela de 500, les nouveaux comptent toujours un peu)
+  g.count = Math.min(g.count + 1, 500);
+  g.mean += (Math.max(-4, Math.min(4, theta)) - g.mean) / g.count;
+  await writeAccount({ key: COLLECTIVE_KEY, stats });
+  res.json({ ok: true, count: g.count });
+}));
+
 app.listen(PORT, () => {
   console.log(`Maitresse virtuelle disponible sur http://localhost:${PORT}`);
 });
