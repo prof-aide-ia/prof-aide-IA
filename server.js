@@ -721,8 +721,14 @@ async function checkLogin(name, code) {
   return hash.length === expected.length && crypto.timingSafeEqual(hash, expected) ? account : null;
 }
 
+// Compte(s) administrateur : le proprietaire du site a des etoiles illimitees (ADMIN_NAMES pour en changer)
+const ADMIN_KEYS = String(process.env.ADMIN_NAMES || 'admin').split(',').map((n) => nameKey(n)).filter(Boolean);
+function isAdminAccount(a) {
+  return Boolean(a && ADMIN_KEYS.includes(a.key));
+}
+
 function publicAccount(a) {
-  return { name: a.name, stars: a.stars || 0, age: a.age, grade: a.grade, gender: a.gender, brain: a.brain || null };
+  return { name: a.name, stars: a.stars || 0, age: a.age, grade: a.grade, gender: a.gender, brain: a.brain || null, admin: isAdminAccount(a) };
 }
 
 // Limite les essais de connexion pour empecher de deviner un code

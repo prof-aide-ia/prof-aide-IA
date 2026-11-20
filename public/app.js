@@ -339,14 +339,18 @@ const IMAGES = { femme: 'images/madame.jpg', homme: 'images/monsieur.jpg' };
 let stars = 250;
 let villeAccount = null; // { code, name, stars } une fois connecte
 
+// Le compte admin (le proprietaire du site) a des etoiles illimitees
+function isAdmin() { return Boolean(villeAccount && villeAccount.admin); }
+
 function updateStarsDisplay() {
-  starsBadge.textContent = `⭐ ${stars}`;
-  gamesStarsBadge.textContent = `⭐ ${stars}`;
+  const shown = isAdmin() ? '∞' : stars;
+  starsBadge.textContent = `⭐ ${shown}`;
+  gamesStarsBadge.textContent = `⭐ ${shown}`;
   if (gamesScreen.style.display !== 'none') renderGamesList();
 }
 
 function syncAccountStars() {
-  if (!villeAccount) return;
+  if (!villeAccount || isAdmin()) return;
   fetch('/api/account/stars', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -365,12 +369,14 @@ function syncAccountStars() {
 }
 
 function addStars(amount) {
+  if (isAdmin()) return;
   stars += amount;
   updateStarsDisplay();
   syncAccountStars();
 }
 
 function spendStars(amount) {
+  if (isAdmin()) return true;
   if (stars < amount) return false;
   stars -= amount;
   updateStarsDisplay();
@@ -472,7 +478,7 @@ function onAccountReady(account, code) {
   // Le compte garde ce que la mini-IA sait ; un nouveau compte recupere ce qu'elle a appris sans compte
   if (account.brain) miniIA = MiniIA.create(account.brain);
   else saveBrain();
-  stars = villeAccount.stars;
+  stars = villeAccount.admin ? 999999 : villeAccount.stars;
   updateStarsDisplay();
   accountBtnLabel.textContent = villeAccount.name;
   openAccountScreen();
@@ -617,8 +623,8 @@ const I18N = {
     interroBtnStart: "🗣️ Le prof m'interroge", interroBtnStop: "⏹️ Arrêter l'interrogation",
     interroStartMsg: "Interroge-moi ! Pose-moi des questions une par une sur cette matière.",
     interroStopMsg: "On arrête l'interrogation, fais-moi un petit bilan.",
-    monIABtnStart: "🧠 Toto", monIABtnStop: "⏹️ Arrêter Toto",
-    monIARelay: "Le prof Claude ne répond pas, Toto prend le relais !",
+    monIABtnStart: "🧠 Le prof", monIABtnStop: "⏹️ Arrêter",
+    monIARelay: "Petit souci de connexion, le prof prend le relais !",
     quizValidateBtn: "Valider", quizValidateAllBtn: "Valider mes réponses",
     videoWatchedReward: "🎉 Vidéo entièrement regardée ! +{n} étoiles",
     gamesBtn: "🎮 Jeux vidéo", gamesHeaderTitle: "🎮 Jeux vidéo", gamePriceLabel: "Prix d'entrée",
@@ -694,8 +700,8 @@ const I18N = {
     interroBtnStart: "🗣️ Quiz me out loud", interroBtnStop: "⏹️ Stop the questions",
     interroStartMsg: "Quiz me! Ask me questions one at a time on this subject.",
     interroStopMsg: "Let's stop the questions, give me a short summary.",
-    monIABtnStart: "🧠 Toto", monIABtnStop: "⏹️ Stop Toto",
-    monIARelay: "The Claude teacher isn't answering, Toto takes over!",
+    monIABtnStart: "🧠 The teacher", monIABtnStop: "⏹️ Stop",
+    monIARelay: "Small connection problem, the teacher takes over!",
     quizValidateBtn: "Check", quizValidateAllBtn: "Check my answers",
     videoWatchedReward: "🎉 Video fully watched! +{n} stars",
     gamesBtn: "🎮 Video games", gamesHeaderTitle: "🎮 Video games", gamePriceLabel: "Entry price",

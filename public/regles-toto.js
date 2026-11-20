@@ -76,7 +76,7 @@
     if (contient(texte, SANTE)) return { raison: 'sante', reponse: 'Je ne suis pas médecin, alors je ne peux pas t\'aider pour ça. Parles-en vite à un adulte. En cas d\'urgence, appelle le 15 (SAMU) ou le 112.', tableau: 'Urgence : 15 ou 112' };
     if (contient(texte, FAIRE_A_MA_PLACE)) return { raison: 'devoirs', reponse: 'Je ne fais pas tes devoirs à ta place : sinon, tu n\'apprendrais rien ! Par contre, je t\'aide à les réussir toi-même. Dis-moi ce qu\'on te demande et ce que tu as déjà essayé.', tableau: 'Je t\'aide, tu trouves 💪' };
     if (/\b(tes regles|tes regle|ce que tu as le droit|tu as le droit de quoi|qu'est-ce que tu peux faire|tu sers a quoi|tu peux faire quoi)\b/.test(simple(texte))) {
-      return { raison: 'charte', reponse: charte(), tableau: 'Les règles de Toto' };
+      return { raison: 'charte', reponse: charte(), tableau: 'Les règles du prof' };
     }
     return null;
   }

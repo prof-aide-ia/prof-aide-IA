@@ -778,7 +778,7 @@
       state.greeted = true;
       const { known } = enginesFor(ctx.subject);
       return {
-        reponse: `Salut ! C'est moi, Toto, le prof du site. Pose-moi une question de cours, par exemple « comment ça marche les fois ? », ou dis « interroge-moi » et je te pose des questions${known ? ` de ${ctx.subject}` : ''}.`,
+        reponse: `Salut ! C'est moi, ton prof. Pose-moi une question de cours, par exemple « comment ça marche les fois ? », ou dis « interroge-moi » et je te pose des questions${known ? ` de ${ctx.subject}` : ''}.`,
         tableau: 'Pose-moi une question !',
       };
     }
@@ -871,7 +871,7 @@
       }
       // Je ne sais pas : je demande au prof Claude, et j'apprends sa reponse pour la prochaine fois
       return {
-        reponse: 'Hmm, ça je ne le sais pas encore... Je demande au prof Claude, et j\'apprends sa réponse pour la prochaine fois !',
+        reponse: 'Hmm, ça je ne le sais pas encore... Je cherche la réponse, et je la retiens pour la prochaine fois !',
         tableau: null,
         askClaude: raw,
       };
