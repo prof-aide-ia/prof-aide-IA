@@ -10,9 +10,9 @@ const API_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = 'claude-haiku-5-5';
 const ACCOUNTS_DIR = path.join(__dirname, 'accounts');
 
-// Interrupteur : MON_IA_PARTOUT=oui dans le fichier .env => Mon IA (public/mon-ia.js) remplace Claude
-// dans tout le site (prof, quiz, evaluations, fiches, videos). Sans cette ligne, c'est Claude comme avant.
-const MON_IA_PARTOUT = /^(oui|yes|1|true)$/i.test(String(process.env.MON_IA_PARTOUT || '').trim());
+// Toto (public/mon-ia.js) fait le prof dans tout le site (prof, quiz, evaluations, fiches, videos) ;
+// quand il ne sait pas, il demande a Claude. Pour revenir a Claude partout : MON_IA_PARTOUT=non dans .env.
+const MON_IA_PARTOUT = !/^(non|no|0|false)$/i.test(String(process.env.MON_IA_PARTOUT || 'oui').trim());
 // Les regles de Toto (le meme fichier sert au site et au serveur)
 const REGLES_TOTO = require('./public/regles-toto.js');
 
