@@ -377,7 +377,19 @@
     [/animaux|dinosaure|insecte|ocean|ecologie|jardinage/, [b('animaux')]],
   ];
 
-  function enginesFor(subject) {
+  // Les equations (avec x) s'apprennent a partir de la 4eme : pas avant
+  const EQUATION_GRADES = /4ème|3ème|Seconde|Première|Terminale|Université/;
+  function forGrade(engines, grade) {
+    if (!grade || EQUATION_GRADES.test(grade)) return engines;
+    return engines.filter((e) => e.id !== 'equation');
+  }
+
+  function enginesFor(subject, grade) {
+    const found = enginesForSubject(subject);
+    return { engines: forGrade(found.engines, grade), known: found.known };
+  }
+
+  function enginesForSubject(subject) {
     const s = stripAccents(String(subject || '').toLowerCase());
     // Les banques du savoir (public/savoir/*.js) pour cette matiere precise
     const matieres = savoir().matieres || {};
@@ -728,7 +740,7 @@
   }
 
   function nextQuestion(state, ctx) {
-    const engines = (state.engines && state.engines.length) ? state.engines : enginesFor(ctx.subject).engines;
+    const engines = (state.engines && state.engines.length) ? state.engines : enginesFor(ctx.subject, ctx.grade).engines;
     const level = levelFor(state, ctx);
     let q;
     for (let i = 0; i < 8; i++) {
@@ -955,8 +967,8 @@
   }
 
   // Plusieurs questions differentes pour une matiere
-  function collect(subject, level, count) {
-    const { engines } = enginesFor(subject);
+  function collect(subject, level, count, grade) {
+    const { engines } = enginesFor(subject, grade);
     const seen = new Set();
     const list = [];
     for (let i = 0; i < count * 30 && list.length < count; i++) {
@@ -984,11 +996,11 @@
   }
 
   // mode : 'qcm' (10 questions), 'ecrit' (5), 'evaluation' (8, melange) ; difficulty : facile | normal | difficile
-  function makeQuiz(subject, mode, difficulty) {
+  function makeQuiz(subject, mode, difficulty, grade) {
     const level = { facile: 0, normal: 1, difficile: 2 }[difficulty] ?? 1;
-    if (mode === 'ecrit') return { questions: collect(subject, level, 5).map(toEcrit) };
+    if (mode === 'ecrit') return { questions: collect(subject, level, 5, grade).map(toEcrit) };
     if (mode === 'evaluation') {
-      const items = collect(subject, level, 8);
+      const items = collect(subject, level, 8, grade);
       const half = Math.ceil(items.length / 2);
       const questions = [
         ...items.slice(0, half).map((it) => ({ type: 'qcm', exercice: 'Exercice 1 : Questions à choix', consigne: 'Entoure la bonne réponse.', ...toQcm(it, level) })),
@@ -996,7 +1008,7 @@
       ];
       return { titre: `Évaluation : ${subject}`, questions };
     }
-    return { questions: collect(subject, level, 10).map((it) => toQcm(it, level)) };
+    return { questions: collect(subject, level, 10, grade).map((it) => toQcm(it, level)) };
   }
 
   // Titre d'une notion avec les accents : on retrouve le mot-cle dans le texte ("Numérateur" et pas "Numerateur")
