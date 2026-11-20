@@ -813,6 +813,22 @@ app.post('/api/admin/reset-code', safe(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// Remet tous les comptes a zero : etoiles a 0 et mini-IA effacee. Les prenoms et les codes restent.
+app.post('/api/admin/reset-all', safe(async (req, res) => {
+  if (!(await checkAdmin(req, res))) return;
+  if ((req.body || {}).confirm !== 'ZERO') return res.status(400).json({ error: 'Confirmation manquante.' });
+  let count = 0;
+  for (const account of await listAccounts()) {
+    if (!account || !account.salt) continue;
+    account.stars = 0;
+    account.gains = [];
+    account.brain = null;
+    await writeAccount(account);
+    count++;
+  }
+  res.json({ ok: true, count });
+}));
+
 app.post('/api/account/login', safe(async (req, res) => {
   const { name, code } = req.body || {};
   if (tooManyTries(req.ip)) return res.status(429).json({ error: 'errTooMany' });

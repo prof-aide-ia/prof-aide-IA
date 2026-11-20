@@ -582,6 +582,17 @@ async function loadAdminList() {
   });
 }
 
+document.getElementById('adminResetAllBtn').addEventListener('click', async () => {
+  const sure = window.confirm('Remettre TOUS les comptes à zéro ?\n\nLes étoiles reviennent à 0 et la mini-IA oublie tout, pour tous les joueurs. Les comptes (prénoms et codes) restent.\n\nOn ne pourra pas revenir en arrière.');
+  if (!sure) return;
+  const { ok, data } = await adminPost('/api/admin/reset-all', { confirm: 'ZERO' });
+  if (!ok) return window.alert(data.error || 'Erreur');
+  miniIA = MiniIA.create(null);
+  saveBrain();
+  window.alert(`C'est fait : ${data.count} compte(s) remis à zéro.`);
+  loadAdminList();
+});
+
 adminOpenBtn.addEventListener('click', () => {
   const open = adminContent.style.display === 'none';
   adminContent.style.display = open ? 'block' : 'none';

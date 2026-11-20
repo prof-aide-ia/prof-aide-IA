@@ -1600,3 +1600,5 @@ canvas#tableau {
 .admin-list { max-height: 260px; overflow-y: auto; }
 .admin-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid #ece7ff; font-size: 0.88em; color: #4a4a5a; }
 .admin-reset-btn { flex-shrink: 0; border: 2px solid #ece7ff; background: white; border-radius: 10px; padding: 6px 8px; cursor: pointer; font-size: 0.85em; }
+
+.admin-danger-btn { margin-top: 12px; width: 100%; padding: 10px; border: 2px solid #f5a3a3; background: #fff5f5; color: #d8333f; border-radius: 12px; font-weight: 700; cursor: pointer; }
