@@ -1588,3 +1588,7 @@ canvas#tableau {
   color: #fff;
   border-color: #e8590c;
 }
+
+/* Theme personnalise refuse (divertissement) */
+.subject-option-refused { border-color: #f5a3a3; background: #fff5f5; }
+.subject-option-refused .opt-subject { color: #d8333f; font-weight: 700; white-space: normal; }

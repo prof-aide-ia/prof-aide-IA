@@ -119,6 +119,8 @@ REGLE ABSOLUE : tu ne donnes JAMAIS la reponse finale ou la solution directement
 
 Style : phrases courtes, ton chaleureux et encourageant, vocabulaire et complexite adaptes au niveau de l'eleve (estime comme indique ci-dessus si besoin).
 
+Si l'eleve veut parler de divertissement (jeux video, youtubeurs, streamers, series, celebrites...), ne joue pas le jeu : ramene-le gentiment vers ce qu'il doit apprendre.
+
 Apres chaque reponse, juge si l'eleve beneficierait de l'un de ces outils, en plus de ta reponse :
 - "video" : s'il a besoin de voir une explication filmee sur la notion precise en cours (utile quand une explication visuelle/animee aiderait plus que du texte).
 - "fiche" : s'il a besoin d'une fiche de cours ecrite et structuree sur la notion pour la reviser ou s'y referer.
@@ -240,6 +242,7 @@ app.post('/api/quiz', async (req, res) => {
   }
 
   const { grade, subject, difficulty, language, mode, history, profile } = req.body;
+  if (!(await isEducationalTopic(subject))) return res.status(400).json({ error: NOT_EDUCATIONAL_MESSAGE });
   const hasHistory = Array.isArray(history) && history.length > 0;
 
   try {
@@ -278,6 +281,7 @@ app.post('/api/fiche', async (req, res) => {
   }
 
   const { grade, subject, history, language, profile } = req.body;
+  if (!(await isEducationalTopic(subject))) return res.status(400).json({ error: NOT_EDUCATIONAL_MESSAGE });
   const hasHistory = Array.isArray(history) && history.length > 0;
 
   try {
@@ -310,6 +314,41 @@ const youtubeSearch = require('youtube-search-api');
 // Le sujet choisi a l'inscription (ex: "Conjugaison") est souvent trop large : si l'eleve travaille
 // precisement sur le passe simple, il faut chercher une video sur le passe simple, pas juste sur la
 // conjugaison en general. On utilise Claude pour extraire la notion precise depuis la conversation.
+// ============ Pas de divertissement ============
+// Le site sert a apprendre : un theme sur un jeu video, un youtubeur, un streamer, une serie ou une
+// celebrite est refuse. Claude Haiku juge chaque nouveau theme une seule fois (reponse gardee en memoire).
+const NOT_EDUCATIONAL_MESSAGE = "Ce thème sert à se divertir, pas à apprendre. Choisis plutôt une matière ou une notion d'école.";
+const topicVerdicts = new Map();
+async function isEducationalTopic(subject) {
+  const topic = typeof subject === 'string' ? subject.trim().slice(0, 80) : '';
+  if (!topic) return true;
+  const key = topic.toLowerCase();
+  if (topicVerdicts.has(key)) return topicVerdicts.get(key);
+  const prompt = `Tu es le filtre d'un site d'aide aux devoirs pour enfants. Un eleve veut travailler sur un theme. Decide si ce theme sert a APPRENDRE (matiere scolaire, notion de cours, science, histoire, geographie, langue, art, musique, sport en tant que discipline, culture generale, metier...) ou s'il sert a se DIVERTIR.
+
+Reponds "non" pour : un jeu video ou un personnage de jeu video, un youtubeur, un streamer, un influenceur, une chaine YouTube ou TikTok, une celebrite, une serie, un film, un dessin anime ou un personnage de divertissement, et tout ce qui ne sert pas a apprendre quelque chose d'ecole.
+Reponds "oui" pour une vraie notion a apprendre, meme si elle est formulee simplement.
+
+Reponds UNIQUEMENT par un objet JSON : {"educatif": true} ou {"educatif": false}`;
+  let verdict = true;
+  try {
+    const raw = await callClaude(prompt, [{ role: 'user', content: `Theme : ${topic}` }], 50);
+    verdict = JSON.parse(raw.match(/\{[\s\S]*\}/)[0]).educatif !== false;
+  } catch (err) {
+    console.error('Erreur filtre de theme:', err);
+    return true; // en cas de panne, on ne bloque pas l'eleve
+  }
+  if (topicVerdicts.size > 2000) topicVerdicts.clear();
+  topicVerdicts.set(key, verdict);
+  return verdict;
+}
+
+// Le site demande avant d'accepter un theme personnalise
+app.post('/api/topic-check', async (req, res) => {
+  const { subject } = req.body || {};
+  res.json({ ok: await isEducationalTopic(subject) });
+});
+
 async function buildVideoSearchQuery(grade, subject, history) {
   const fallback = `${subject || ''} ${grade || ''} cours explication`.trim();
   if (!Array.isArray(history) || history.length === 0) return fallback;
@@ -322,7 +361,7 @@ async function buildVideoSearchQuery(grade, subject, history) {
   ];
   const prompt = `Voici un extrait de conversation entre un eleve (niveau ${grade || 'non precise'}) et son professeur, sur le theme general "${subject || 'general'}".
 
-A partir de cette conversation, donne UNIQUEMENT une courte requete de recherche YouTube (3 a 8 mots, en francais) pour trouver une video qui explique precisement la notion exacte sur laquelle l'eleve travaille en ce moment (pas juste le theme general). Reponds uniquement avec la requete de recherche, sans guillemets, sans phrase autour, sans balises markdown.`;
+A partir de cette conversation, donne UNIQUEMENT une courte requete de recherche YouTube (3 a 8 mots, en francais) pour trouver une video qui explique precisement la notion exacte sur laquelle l'eleve travaille en ce moment (pas juste le theme general). La video doit servir a apprendre une notion d'ecole : si l'eleve demande une video de divertissement (un youtubeur, un streamer, un jeu video, une serie, une celebrite...), reponds exactement NON_EDUCATIF. Reponds uniquement avec la requete de recherche, sans guillemets, sans phrase autour, sans balises markdown.`;
 
   try {
     const rawQuery = await callClaude(prompt, recent, 200);
@@ -337,7 +376,9 @@ app.post('/api/video-search', async (req, res) => {
   const { grade, subject, history } = req.body;
 
   try {
+    if (!(await isEducationalTopic(subject))) return res.status(400).json({ error: NOT_EDUCATIONAL_MESSAGE });
     const query = await buildVideoSearchQuery(grade, subject, history);
+    if (/NON_EDUCATIF/i.test(query)) return res.status(400).json({ error: NOT_EDUCATIONAL_MESSAGE });
     const result = await youtubeSearch.GetListByKeyword(query, false, 8, [{ type: 'video' }]);
     const items = result.items || [];
 
