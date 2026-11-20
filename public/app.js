@@ -483,6 +483,7 @@ function onAccountReady(account, code) {
   stars = villeAccount.admin ? 999999 : villeAccount.stars;
   updateStarsDisplay();
   accountBtnLabel.textContent = villeAccount.name;
+  showAdminTopButton();
   openAccountScreen();
 }
 
@@ -593,6 +594,21 @@ document.getElementById('adminResetAllBtn').addEventListener('click', async () =
   loadAdminList();
 });
 
+// Le bouton Admin en haut se place juste a gauche du bouton du compte
+const adminTopBtn = document.getElementById('adminTopBtn');
+function showAdminTopButton() {
+  adminTopBtn.style.display = isAdmin() ? 'block' : 'none';
+  if (isAdmin()) adminTopBtn.style.right = `${accountOpenBtn.offsetWidth + 22}px`;
+}
+window.addEventListener('resize', showAdminTopButton);
+adminTopBtn.addEventListener('click', () => {
+  if (!isAdmin()) return;
+  openAccountScreen();
+  adminContent.style.display = 'block';
+  loadAdminList();
+  adminPanel.scrollIntoView({ block: 'start' });
+});
+
 adminOpenBtn.addEventListener('click', () => {
   const open = adminContent.style.display === 'none';
   adminContent.style.display = open ? 'block' : 'none';
@@ -605,6 +621,7 @@ function logoutAccount() {
   stars = 0;
   updateStarsDisplay();
   accountBtnLabel.textContent = t('accountBtnDefault');
+  showAdminTopButton();
   openAccountScreen();
 }
 
