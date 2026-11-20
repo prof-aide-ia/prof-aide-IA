@@ -319,38 +319,46 @@ const youtubeSearch = require('youtube-search-api');
 // celebrite est refuse. Claude Haiku juge chaque nouveau theme une seule fois (reponse gardee en memoire).
 const NOT_EDUCATIONAL_MESSAGE = "Ce thème sert à se divertir, pas à apprendre. Choisis plutôt une matière ou une notion d'école.";
 const topicVerdicts = new Map();
-async function isEducationalTopic(subject) {
+// Renvoie { educatif, sport } : le theme sert-il a apprendre, et est-ce un sport ?
+async function classifyTopic(subject) {
   const topic = typeof subject === 'string' ? subject.trim().slice(0, 80) : '';
-  if (!topic) return true;
+  if (!topic) return { educatif: true, sport: false };
   const key = topic.toLowerCase();
   if (topicVerdicts.has(key)) return topicVerdicts.get(key);
-  const prompt = `Tu es le filtre d'un site d'aide aux devoirs pour enfants. Un eleve veut travailler sur un theme. Decide si ce theme sert a APPRENDRE (matiere scolaire, notion de cours, science, histoire, geographie, langue, art, musique, sport en tant que discipline, culture generale, metier...) ou s'il sert a se DIVERTIR.
+  const prompt = `Tu es le filtre d'un site d'aide aux devoirs pour enfants. Un eleve veut travailler sur un theme. Decide si ce theme sert a APPRENDRE (matiere scolaire, notion de cours, science, histoire, geographie, langue, art, musique, sport en tant que discipline, culture generale, metier...) ou s'il sert a se DIVERTIR, et si c'est un sport.
 
-Reponds "non" pour : un jeu video ou un personnage de jeu video, un youtubeur, un streamer, un influenceur, une chaine YouTube ou TikTok, une celebrite, une serie, un film, un dessin anime ou un personnage de divertissement, et tout ce qui ne sert pas a apprendre quelque chose d'ecole.
-Reponds "oui" pour une vraie notion a apprendre, meme si elle est formulee simplement.
+"educatif" est false pour : un jeu video ou un personnage de jeu video, un youtubeur, un streamer, un influenceur, une chaine YouTube ou TikTok, une celebrite, une serie, un film, un dessin anime ou un personnage de divertissement, et tout ce qui ne sert pas a apprendre quelque chose d'ecole. "educatif" est true pour une vraie notion a apprendre, meme formulee simplement.
+"sport" est true si le theme est un sport ou une activite sportive (football, basket, natation, EPS...).
 
-Reponds UNIQUEMENT par un objet JSON : {"educatif": true} ou {"educatif": false}`;
-  let verdict = true;
+Reponds UNIQUEMENT par un objet JSON : {"educatif": true ou false, "sport": true ou false}`;
+  let verdict = { educatif: true, sport: false };
   try {
-    const raw = await callClaude(prompt, [{ role: 'user', content: `Theme : ${topic}` }], 50);
-    verdict = JSON.parse(raw.match(/\{[\s\S]*\}/)[0]).educatif !== false;
+    const raw = await callClaude(prompt, [{ role: 'user', content: `Theme : ${topic}` }], 60);
+    const parsed = JSON.parse(raw.match(/\{[\s\S]*\}/)[0]);
+    verdict = { educatif: parsed.educatif !== false, sport: parsed.sport === true };
   } catch (err) {
     console.error('Erreur filtre de theme:', err);
-    return true; // en cas de panne, on ne bloque pas l'eleve
+    return verdict; // en cas de panne, on ne bloque pas l'eleve
   }
   if (topicVerdicts.size > 2000) topicVerdicts.clear();
   topicVerdicts.set(key, verdict);
   return verdict;
 }
 
+async function isEducationalTopic(subject) {
+  return (await classifyTopic(subject)).educatif;
+}
+
 // Le site demande avant d'accepter un theme personnalise
 app.post('/api/topic-check', async (req, res) => {
   const { subject } = req.body || {};
-  res.json({ ok: await isEducationalTopic(subject) });
+  const verdict = await classifyTopic(subject);
+  res.json({ ok: verdict.educatif, sport: verdict.sport });
 });
 
-async function buildVideoSearchQuery(grade, subject, history) {
-  const fallback = `${subject || ''} ${grade || ''} cours explication`.trim();
+async function buildVideoSearchQuery(grade, subject, history, sport) {
+  // Pour un sport : une video qui apprend (regles, technique), jamais des matchs ou des buts
+  const fallback = sport ? `${subject || ''} regles technique expliquees enfants`.trim() : `${subject || ''} ${grade || ''} cours explication`.trim();
   if (!Array.isArray(history) || history.length === 0) return fallback;
 
   // La conversation se termine souvent par un message du professeur (assistant) : l'API Claude exige
@@ -361,7 +369,7 @@ async function buildVideoSearchQuery(grade, subject, history) {
   ];
   const prompt = `Voici un extrait de conversation entre un eleve (niveau ${grade || 'non precise'}) et son professeur, sur le theme general "${subject || 'general'}".
 
-A partir de cette conversation, donne UNIQUEMENT une courte requete de recherche YouTube (3 a 8 mots, en francais) pour trouver une video qui explique precisement la notion exacte sur laquelle l'eleve travaille en ce moment (pas juste le theme general). La video doit servir a apprendre une notion d'ecole : si l'eleve demande une video de divertissement (un youtubeur, un streamer, un jeu video, une serie, une celebrite...), reponds exactement NON_EDUCATIF. Reponds uniquement avec la requete de recherche, sans guillemets, sans phrase autour, sans balises markdown.`;
+A partir de cette conversation, donne UNIQUEMENT une courte requete de recherche YouTube (3 a 8 mots, en francais) pour trouver une video qui explique precisement la notion exacte sur laquelle l'eleve travaille en ce moment (pas juste le theme general). La video doit servir a apprendre une notion d'ecole : si l'eleve demande une video de divertissement (un youtubeur, un streamer, un jeu video, une serie, une celebrite...), reponds exactement NON_EDUCATIF.${sport ? ' Le theme est un sport : la video doit expliquer les regles, la technique ou l\'histoire de ce sport, jamais des matchs, des buts, des resumes ou des meilleurs moments.' : ''} Reponds uniquement avec la requete de recherche, sans guillemets, sans phrase autour, sans balises markdown.`;
 
   try {
     const rawQuery = await callClaude(prompt, recent, 200);
@@ -376,8 +384,9 @@ app.post('/api/video-search', async (req, res) => {
   const { grade, subject, history } = req.body;
 
   try {
-    if (!(await isEducationalTopic(subject))) return res.status(400).json({ error: NOT_EDUCATIONAL_MESSAGE });
-    const query = await buildVideoSearchQuery(grade, subject, history);
+    const verdict = await classifyTopic(subject);
+    if (!verdict.educatif) return res.status(400).json({ error: NOT_EDUCATIONAL_MESSAGE });
+    const query = await buildVideoSearchQuery(grade, subject, history, verdict.sport);
     if (/NON_EDUCATIF/i.test(query)) return res.status(400).json({ error: NOT_EDUCATIONAL_MESSAGE });
     const result = await youtubeSearch.GetListByKeyword(query, false, 8, [{ type: 'video' }]);
     const items = result.items || [];
@@ -390,7 +399,7 @@ app.post('/api/video-search', async (req, res) => {
     const lumniVideo = items.find(item => item.channelTitle && item.channelTitle.toLowerCase().includes('lumni'));
     const chosen = lumniVideo || items[0];
 
-    res.json({ videoId: chosen.id, title: chosen.title || '' });
+    res.json({ videoId: chosen.id, title: chosen.title || '', sport: verdict.sport });
   } catch (err) {
     console.error(err);
     res.status(502).json({ error: 'La recherche video a echoue.' });
