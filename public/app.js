@@ -423,6 +423,8 @@ function openAccountScreen() {
     accountLoggedName.textContent = villeAccount.name;
     accountLoggedStars.textContent = stars;
     renderAccountBrain();
+    adminPanel.style.display = isAdmin() ? 'block' : 'none';
+    adminContent.style.display = 'none';
   } else {
     showAccountView('login');
     accountNameInput.value = '';
@@ -527,6 +529,64 @@ async function registerAccount() {
   }, regError);
   if (account) onAccountReady(account, code);
 }
+
+// ============ Espace admin (seulement pour le compte admin) ============
+const adminPanel = document.getElementById('adminPanel');
+const adminOpenBtn = document.getElementById('adminOpenBtn');
+const adminContent = document.getElementById('adminContent');
+const adminList = document.getElementById('adminList');
+const adminError = document.getElementById('adminError');
+
+function adminPost(url, extra) {
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: villeAccount.name, code: villeAccount.code, ...extra }),
+  }).then(async (res) => ({ ok: res.ok, data: await res.json() }));
+}
+
+async function loadAdminList() {
+  adminError.style.display = 'none';
+  adminList.textContent = 'Chargement...';
+  const { ok, data } = await adminPost('/api/admin/accounts', {});
+  if (!ok) { adminList.textContent = ''; adminError.textContent = data.error || 'Erreur'; adminError.style.display = 'block'; return; }
+  adminList.innerHTML = '';
+  const count = document.createElement('p');
+  count.className = 'account-text';
+  count.textContent = `${data.accounts.length} compte(s)`;
+  adminList.appendChild(count);
+  data.accounts.forEach((a) => {
+    const row = document.createElement('div');
+    row.className = 'admin-row';
+    const info = document.createElement('div');
+    const name = document.createElement('strong');
+    name.textContent = a.name + (a.admin ? ' (admin)' : '');
+    const details = document.createElement('span');
+    details.textContent = ` · ${a.grade || '?'} · ${a.age || '?'} ans · ⭐ ${a.stars}${a.created ? ' · créé le ' + new Date(a.created).toLocaleDateString('fr-FR') : ''}`;
+    info.append(name, details);
+    row.appendChild(info);
+    if (!a.admin) {
+      const reset = document.createElement('button');
+      reset.className = 'admin-reset-btn';
+      reset.textContent = '🔑 Nouveau code';
+      reset.addEventListener('click', async () => {
+        const newCode = window.prompt(`Nouveau code pour ${a.name} (6 caractères minimum, avec des lettres ET des chiffres) :`);
+        if (!newCode) return;
+        const result = await adminPost('/api/admin/reset-code', { target: a.name, newCode });
+        if (result.ok) window.alert(`C'est fait ! Le nouveau code de ${a.name} est : ${newCode}\nDonne-le-lui, il pourra se reconnecter.`);
+        else window.alert(result.data.error === 'errCodeWeak' ? t('errCodeWeak') : (result.data.error || 'Erreur'));
+      });
+      row.appendChild(reset);
+    }
+    adminList.appendChild(row);
+  });
+}
+
+adminOpenBtn.addEventListener('click', () => {
+  const open = adminContent.style.display === 'none';
+  adminContent.style.display = open ? 'block' : 'none';
+  if (open) loadAdminList();
+});
 
 function logoutAccount() {
   villeAccount = null;

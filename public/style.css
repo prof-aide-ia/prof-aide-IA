@@ -1592,3 +1592,11 @@ canvas#tableau {
 /* Theme personnalise refuse (divertissement) */
 .subject-option-refused { border-color: #f5a3a3; background: #fff5f5; }
 .subject-option-refused .opt-subject { color: #d8333f; font-weight: 700; white-space: normal; }
+
+/* Espace admin */
+.admin-panel { margin: 4px 0 16px; }
+.admin-open-btn { background: linear-gradient(135deg, #3b2a9e, #7b5cff); color: white; margin-bottom: 10px; }
+.admin-hint { font-size: 0.85em; }
+.admin-list { max-height: 260px; overflow-y: auto; }
+.admin-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid #ece7ff; font-size: 0.88em; color: #4a4a5a; }
+.admin-reset-btn { flex-shrink: 0; border: 2px solid #ece7ff; background: white; border-radius: 10px; padding: 6px 8px; cursor: pointer; font-size: 0.85em; }

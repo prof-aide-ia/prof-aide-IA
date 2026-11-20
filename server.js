@@ -760,6 +760,59 @@ app.post('/api/account/register', safe(async (req, res) => {
   res.json({ account: publicAccount(account) });
 }));
 
+// ============ Espace admin ============
+// Seul le compte admin (verifie avec son prenom ET son code a chaque fois) peut voir la liste des
+// comptes et donner un nouveau code a un joueur. Les codes ne sont jamais affiches : ils sont haches.
+async function listAccounts() {
+  if (USE_SUPABASE) {
+    const rows = await (await supabaseRequest('?select=key,data')).json();
+    return rows.filter((r) => !String(r.key).startsWith('_')).map((r) => r.data);
+  }
+  if (USE_UPSTASH) {
+    const keys = (await dbCommand(['KEYS', 'compte:*'])) || [];
+    const list = [];
+    for (const k of keys) {
+      if (k.startsWith('compte:_')) continue;
+      const raw = await dbCommand(['GET', k]);
+      if (raw) list.push(JSON.parse(raw));
+    }
+    return list;
+  }
+  return fs.readdirSync(ACCOUNTS_DIR)
+    .filter((f) => f.endsWith('.json') && !f.startsWith('_'))
+    .map((f) => { try { return JSON.parse(fs.readFileSync(path.join(ACCOUNTS_DIR, f), 'utf8')); } catch { return null; } })
+    .filter(Boolean);
+}
+
+async function checkAdmin(req, res) {
+  if (tooManyTries(req.ip)) { res.status(429).json({ error: 'errTooMany' }); return null; }
+  const { name, code } = req.body || {};
+  const account = await checkLogin(name, code);
+  if (!account || !isAdminAccount(account)) { res.status(403).json({ error: 'Réservé au compte admin.' }); return null; }
+  return account;
+}
+
+app.post('/api/admin/accounts', safe(async (req, res) => {
+  if (!(await checkAdmin(req, res))) return;
+  const accounts = (await listAccounts())
+    .filter((a) => a && a.salt)
+    .map((a) => ({ name: a.name, grade: a.grade, age: a.age, stars: a.stars || 0, created: a.created || null, admin: isAdminAccount(a) }))
+    .sort((a, b) => (b.created || 0) - (a.created || 0));
+  res.json({ accounts });
+}));
+
+app.post('/api/admin/reset-code', safe(async (req, res) => {
+  if (!(await checkAdmin(req, res))) return;
+  const { target, newCode } = req.body || {};
+  if (!isStrongCode(newCode)) return res.status(400).json({ error: 'errCodeWeak' });
+  const account = await readAccount(nameKey(target));
+  if (!account || !account.salt) return res.status(404).json({ error: 'Compte introuvable.' });
+  account.salt = crypto.randomBytes(16).toString('hex');
+  account.hash = hashCode(newCode, account.salt);
+  await writeAccount(account);
+  res.json({ ok: true });
+}));
+
 app.post('/api/account/login', safe(async (req, res) => {
   const { name, code } = req.body || {};
   if (tooManyTries(req.ip)) return res.status(429).json({ error: 'errTooMany' });
