@@ -770,8 +770,98 @@ function isAdminAccount(a) {
 }
 
 function publicAccount(a) {
-  return { name: a.name, stars: a.stars || 0, age: a.age, grade: a.grade, gender: a.gender, brain: a.brain || null, admin: isAdminAccount(a) };
+  return { name: a.name, stars: a.stars || 0, age: a.age, grade: a.grade, gender: a.gender, brain: a.brain || null, admin: isAdminAccount(a), hasEmail: Boolean(a.email) };
 }
+
+// ============ Code oublie : lien envoye au mail d'un parent ============
+// Le mail part avec Brevo (gratuit). A mettre sur Render : BREVO_API_KEY, MAIL_FROM (l'adresse
+// d'envoi verifiee chez Brevo) et, si besoin, SITE_URL (l'adresse du site).
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const MAIL_FROM = process.env.MAIL_FROM;
+const SITE_URL = (process.env.SITE_URL || 'https://prof-aide-ia.onrender.com').replace(/\/+$/, '');
+const RESET_MINUTES = 30;
+
+function cleanEmail(email) {
+  const e = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  return /^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,}$/.test(e) ? e : null;
+}
+function sha256(text) {
+  return crypto.createHash('sha256').update(text).digest('hex');
+}
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function sendResetMail(to, name, link) {
+  const response = await fetch(process.env.BREVO_API_URL || 'https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'api-key': BREVO_API_KEY, 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({
+      sender: { name: 'Prof Aide IA', email: MAIL_FROM },
+      to: [{ email: to }],
+      subject: `Prof Aide IA : nouveau code pour ${name}`,
+      textContent: `Bonjour,\n\n${name} a oublié son code secret sur Prof Aide IA. Pour en choisir un nouveau, ouvrez ce lien (il marche pendant ${RESET_MINUTES} minutes) :\n${link}\n\nSi vous n'avez rien demandé, ignorez ce message : le code ne change pas.\n\nProf Aide IA`,
+      htmlContent: `<p>Bonjour,</p><p><b>${escapeHtml(name)}</b> a oublié son code secret sur Prof Aide IA. Pour en choisir un nouveau, cliquez ici (le lien marche pendant ${RESET_MINUTES} minutes) :</p><p><a href="${escapeHtml(link)}">Choisir un nouveau code</a></p><p>Si vous n'avez rien demandé, ignorez ce message : le code ne change pas.</p><p>Prof Aide IA</p>`,
+    }),
+  });
+  if (!response.ok) throw new Error(`Brevo : erreur ${response.status} ${(await response.text()).slice(0, 200)}`);
+}
+
+// Demande de lien : la reponse est toujours la meme, pour qu'on ne puisse pas deviner qui a un mail
+app.post('/api/account/forgot', safe(async (req, res) => {
+  if (tooManyTries(req.ip)) return res.status(429).json({ error: 'errTooMany' });
+  if (!BREVO_API_KEY || !MAIL_FROM) return res.status(503).json({ error: 'forgotUnavailable' });
+  // On accepte le prenom OU le mail donne a la creation du compte
+  const input = String((req.body || {}).name || '').trim().slice(0, 200);
+  let targets = [];
+  if (input.includes('@')) {
+    const email = cleanEmail(input);
+    if (email) targets = (await listAccounts()).filter((a) => a && a.salt && a.email === email && !a.blocked);
+  } else {
+    const found = await readAccount(nameKey(input));
+    if (found && found.salt && found.email && !found.blocked) targets = [found];
+  }
+  for (const account of targets.slice(0, 5)) {
+    const token = crypto.randomBytes(24).toString('hex');
+    account.resetHash = sha256(token);
+    account.resetExpires = Date.now() + RESET_MINUTES * 60000;
+    await writeAccount(account);
+    const link = `${SITE_URL}/?nouveau-code=${token}&prenom=${encodeURIComponent(account.name)}`;
+    try { await sendResetMail(account.email, account.name, link); } catch (err) { console.error(err); }
+  }
+  res.json({ ok: true });
+}));
+
+// Le lien du mail : on change le code si le lien est bon et pas trop vieux
+app.post('/api/account/reset', safe(async (req, res) => {
+  if (tooManyTries(req.ip)) return res.status(429).json({ error: 'errTooMany' });
+  const { name, token, newCode, newCodeConfirm } = req.body || {};
+  const account = await readAccount(nameKey(name));
+  const valid = account && account.resetHash && typeof token === 'string' && account.resetExpires > Date.now()
+    && crypto.timingSafeEqual(Buffer.from(sha256(token), 'hex'), Buffer.from(account.resetHash, 'hex'));
+  if (!valid) return res.status(400).json({ error: 'resetBad' });
+  if (!isStrongCode(newCode)) return res.status(400).json({ error: 'errCodeWeak' });
+  if (newCode !== newCodeConfirm) return res.status(400).json({ error: 'errCodeMismatch' });
+  account.salt = crypto.randomBytes(16).toString('hex');
+  account.hash = hashCode(newCode, account.salt);
+  delete account.resetHash;
+  delete account.resetExpires;
+  await writeAccount(account);
+  res.json({ ok: true });
+}));
+
+// Ajouter ou changer le mail du parent depuis son compte
+app.post('/api/account/email', safe(async (req, res) => {
+  const { name, code, email, consent } = req.body || {};
+  const account = await checkLogin(name, code);
+  if (!account) return res.status(401).json({ error: 'errLogin' });
+  const clean = cleanEmail(email);
+  if (!clean) return res.status(400).json({ error: 'errEmail' });
+  if (consent !== true) return res.status(400).json({ error: 'errConsent' });
+  account.email = clean;
+  await writeAccount(account);
+  res.json({ ok: true });
+}));
 
 // Limite les essais de connexion pour empecher de deviner un code
 const loginTries = new Map();
@@ -784,7 +874,7 @@ function tooManyTries(ip) {
 }
 
 app.post('/api/account/register', safe(async (req, res) => {
-  const { name, code, codeConfirm, age, grade, gender } = req.body || {};
+  const { name, code, codeConfirm, age, grade, gender, email, consent } = req.body || {};
   const cleanName = typeof name === 'string' ? name.trim().replace(/\s+/g, ' ') : '';
   if (!/^[\p{L}][\p{L} '-]{1,15}$/u.test(cleanName)) return res.status(400).json({ error: 'errName' });
   if (!isStrongCode(code)) return res.status(400).json({ error: 'errCodeWeak' });
@@ -793,11 +883,16 @@ app.post('/api/account/register', safe(async (req, res) => {
   if (!Number.isInteger(ageNum) || ageNum < 4 || ageNum > 99) return res.status(400).json({ error: 'errAge' });
   if (!GRADES.includes(grade)) return res.status(400).json({ error: 'errGrade' });
   if (!GENDERS.includes(gender)) return res.status(400).json({ error: 'errGender' });
+  // Mail d'un parent : facultatif, mais avec son accord
+  const parentEmail = email ? cleanEmail(email) : null;
+  if (email && !parentEmail) return res.status(400).json({ error: 'errEmail' });
+  if (parentEmail && consent !== true) return res.status(400).json({ error: 'errConsent' });
   const key = nameKey(cleanName);
   if (!key) return res.status(400).json({ error: 'errName' });
   if (await readAccount(key)) return res.status(409).json({ error: 'errNameTaken' });
   const salt = crypto.randomBytes(16).toString('hex');
   const account = { key, name: cleanName, salt, hash: hashCode(code, salt), age: ageNum, grade, gender, stars: 0, created: Date.now() };
+  if (parentEmail) account.email = parentEmail;
   await writeAccount(account);
   res.json({ account: publicAccount(account) });
 }));
@@ -838,7 +933,7 @@ app.post('/api/admin/accounts', safe(async (req, res) => {
   if (!(await checkAdmin(req, res))) return;
   const accounts = (await listAccounts())
     .filter((a) => a && a.salt)
-    .map((a) => ({ name: a.name, grade: a.grade, age: a.age, stars: a.stars || 0, created: a.created || null, admin: isAdminAccount(a), blocked: Boolean(a.blocked) }))
+    .map((a) => ({ name: a.name, grade: a.grade, age: a.age, stars: a.stars || 0, created: a.created || null, admin: isAdminAccount(a), blocked: Boolean(a.blocked), hasEmail: Boolean(a.email) }))
     .sort((a, b) => (b.created || 0) - (a.created || 0));
   res.json({ accounts });
 }));

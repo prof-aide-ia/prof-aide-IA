@@ -1608,3 +1608,10 @@ canvas#tableau {
 .admin-stat { margin: 0 0 4px; font-size: 0.88em; }
 .admin-row { flex-wrap: wrap; }
 .admin-row > div { flex: 1 1 100%; }
+
+/* Mail du parent et code oublie */
+.account-consent { display: flex; align-items: flex-start; gap: 8px; font-size: 0.85em; color: #4a4a5a; margin: -4px 0 14px; cursor: pointer; }
+.account-consent input { margin-top: 2px; }
+.account-email-box { margin: 4px 0 16px; padding: 12px; border: 2px dashed #ece7ff; border-radius: 12px; }
+.account-email-box .ville-username-input { text-align: left; margin-bottom: 10px; }
+.account-error.account-ok { color: #1f9d55; }

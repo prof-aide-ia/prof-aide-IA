@@ -339,6 +339,7 @@
           <input type="password" id="accountCodeInput" class="ville-username-input" maxlength="40" autocomplete="current-password" data-i18n-placeholder="accountCodeLoginPlaceholder" placeholder="Ton code secret">
           <p class="account-error" id="accountError" style="display:none"></p>
           <button id="accountLoginBtn" class="quiz-result-btn" data-i18n="accountLoginBtn">Se connecter</button>
+          <button id="accountShowForgotBtn" class="account-link" data-i18n="forgotLink">J'ai oublié mon code</button>
           <div class="account-switch">
             <span data-i18n="accountNoAccount">Pas encore de compte ?</span>
             <button id="accountShowRegisterBtn" class="quiz-result-btn account-create-btn" data-i18n="accountCreateBtn">✨ Créer un compte</button>
@@ -374,14 +375,43 @@
             <button type="button" class="account-gender-btn" data-gender="garcon" data-i18n="genderBoy">👦 Un garçon</button>
             <button type="button" class="account-gender-btn" data-gender="secret" data-i18n="genderSecret">🤐 Je préfère ne pas le dire</button>
           </div>
+          <label class="account-label" for="regEmailInput" data-i18n="regEmailLabel">Ton mail ou celui d'un parent (pas obligatoire, mais c'est mieux : si tu oublies ton code, tu pourras le changer)</label>
+          <input type="email" id="regEmailInput" class="ville-username-input" maxlength="200" autocomplete="email" placeholder="parent@exemple.fr">
+          <label class="account-consent"><input type="checkbox" id="regConsentInput"> <span data-i18n="regConsent">Mon parent est d'accord pour donner son mail</span></label>
           <p class="account-error" id="regError" style="display:none"></p>
           <button id="accountRegisterBtn" class="quiz-result-btn" data-i18n="accountRegisterBtn">Créer mon compte</button>
           <button id="accountShowLoginBtn" class="account-link" data-i18n="accountHaveAccount">J'ai déjà un compte</button>
         </div>
 
+        <div id="accountForgotView" style="display:none">
+          <h2 class="account-subtitle" data-i18n="forgotHeading">🔑 Code oublié</h2>
+          <p class="account-text" data-i18n="forgotIntro">Écris ton prénom ou le mail que tu as mis : on t'enverra un lien pour choisir un nouveau code.</p>
+          <input type="text" id="forgotNameInput" class="ville-username-input" maxlength="200" data-i18n-placeholder="forgotPlaceholder" placeholder="Ton prénom ou ton mail">
+          <p class="account-error" id="forgotError" style="display:none"></p>
+          <p class="account-match ok" id="forgotDone" style="display:none"></p>
+          <button id="forgotSendBtn" class="quiz-result-btn" data-i18n="forgotSend">Envoyer le lien</button>
+          <button id="forgotBackBtn" class="account-link" data-i18n="accountHaveAccount">J'ai déjà un compte</button>
+        </div>
+
+        <div id="accountResetView" style="display:none">
+          <h2 class="account-subtitle" data-i18n="resetHeading">🔑 Choisis un nouveau code</h2>
+          <p class="account-text"><strong id="resetName"></strong></p>
+          <input type="password" id="resetCodeInput" class="ville-username-input" maxlength="40" autocomplete="new-password" data-i18n-placeholder="accountCodePlaceholder" placeholder="Code secret (ex: pomme123)">
+          <input type="password" id="resetCode2Input" class="ville-username-input" maxlength="40" autocomplete="new-password" data-i18n-placeholder="accountCodeConfirmPlaceholder" placeholder="Retape ton code secret">
+          <p class="account-error" id="resetError" style="display:none"></p>
+          <button id="resetSendBtn" class="quiz-result-btn" data-i18n="resetBtn">Changer mon code</button>
+        </div>
+
         <div id="accountLoggedInView" style="display:none">
           <p class="account-text"><span data-i18n="accountLoggedAs">Connecté en tant que</span> <strong id="accountLoggedName"></strong></p>
           <p class="account-text">⭐ <span id="accountLoggedStars">0</span> <span data-i18n="accountStarsSaved">étoiles sauvegardées</span></p>
+          <div class="account-email-box">
+            <p class="account-text" id="accountEmailStatus"></p>
+            <input type="email" id="accountEmailInput" class="ville-username-input" maxlength="200" autocomplete="email" placeholder="parent@exemple.fr">
+            <label class="account-consent"><input type="checkbox" id="accountConsentInput"> <span data-i18n="regConsent">Mon parent est d'accord pour donner son mail</span></label>
+            <p class="account-error" id="accountEmailError" style="display:none"></p>
+            <button id="accountEmailSaveBtn" class="account-link" data-i18n="accountEmailSave">Enregistrer le mail de mon parent</button>
+          </div>
           <div class="account-brain" id="accountBrain"></div>
           <div id="adminPanel" class="admin-panel" style="display:none">
             <button id="adminOpenBtn" class="quiz-result-btn admin-open-btn">🛠️ Espace admin</button>
