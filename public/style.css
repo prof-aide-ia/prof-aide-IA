@@ -1602,3 +1602,9 @@ canvas#tableau {
 .admin-reset-btn { flex-shrink: 0; border: 2px solid #ece7ff; background: white; border-radius: 10px; padding: 6px 8px; cursor: pointer; font-size: 0.85em; }
 
 .admin-danger-btn { margin-top: 12px; width: 100%; padding: 10px; border: 2px solid #f5a3a3; background: #fff5f5; color: #d8333f; border-radius: 12px; font-weight: 700; cursor: pointer; }
+
+.admin-select { text-align: left; margin-bottom: 8px; font-size: 0.85em; }
+.admin-stats { margin-bottom: 12px; }
+.admin-stat { margin: 0 0 4px; font-size: 0.88em; }
+.admin-row { flex-wrap: wrap; }
+.admin-row > div { flex: 1 1 100%; }

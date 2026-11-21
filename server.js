@@ -7,12 +7,54 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 // Claude Haiku 5.5 : modele rapide et beaucoup moins cher, suffisant pour des reponses courtes
-const MODEL = 'claude-haiku-5-5';
+// ============ Reglages du site, choisis dans l'Espace admin ============
+// Versions de Claude au choix (prix en dollars pour 1 million de "tokens" lus / ecrits)
+const CLAUDE_MODELS = {
+  'claude-haiku-5-5': 'Claude Haiku 5.5 : rapide et le moins cher (0,10 $ / 0,50 $)',
+  'claude-sonnet-5-5': 'Claude Sonnet 5.5 : plus fort (2 $ / 10 $)',
+  'claude-opus-5-5': 'Claude Opus 5.5 : le plus fort et le plus cher (4 $ / 20 $)',
+};
+const AI_MODES = {
+  'toto+claude': 'Toto + Claude : Toto répond, et demande à Claude quand il ne sait pas',
+  claude: 'Claude seul : Claude répond à tout',
+  toto: 'Toto seul : Claude ne répond jamais aux élèves',
+};
+const SETTINGS_KEY = '_reglages';
+const settings = {
+  mode: /^(non|no|0|false)$/i.test(String(process.env.MON_IA_PARTOUT || '').trim()) ? 'claude' : 'toto+claude',
+  model: 'claude-haiku-5-5',
+};
+async function loadSettings() {
+  const saved = await readAccount(SETTINGS_KEY);
+  if (saved && AI_MODES[saved.mode]) settings.mode = saved.mode;
+  if (saved && CLAUDE_MODELS[saved.model]) settings.model = saved.model;
+}
+// Toto fait le prof (explications, quiz, fiches) sauf en mode "Claude seul"
+function totoEverywhere() { return settings.mode !== 'claude'; }
+
+// Chaque version de Claude a ses propres reglages de reflexion
+function claudeRequestOptions(maxTokens) {
+  const model = settings.model;
+  // Opus 5.5 reflechit toujours : on le garde rapide (effort bas) et on lui laisse plus de place
+  if (model === 'claude-opus-5-5') return { model, max_tokens: maxTokens * 3, output_config: { effort: 'low' }, fallbacks: 'default' };
+  if (model === 'claude-sonnet-5-5') return { model, max_tokens: maxTokens, thinking: { type: 'between_tools' }, output_config: { effort: 'low' }, fallbacks: 'default' };
+  // Haiku : reponses courtes en JSON, pas besoin de reflexion (ca evite aussi qu'elle mange les tokens)
+  return { model, max_tokens: maxTokens, thinking: { type: 'disabled' } };
+}
+function claudeWebOptions(maxTokens) {
+  const model = settings.model;
+  if (model === 'claude-haiku-5-5') return { model, max_tokens: maxTokens };
+  return { model, max_tokens: maxTokens * 2, output_config: { effort: 'low' }, fallbacks: 'default' };
+}
+// Si Sonnet ou Opus refusent de repondre, Anthropic essaie automatiquement un autre modele
+function claudeBetaHeaders() {
+  return settings.model === 'claude-haiku-5-5' ? {} : { 'anthropic-beta': 'server-side-fallback-2026-07-01' };
+}
+function webSearchToolType() {
+  return settings.model === 'claude-haiku-5-5' ? 'web_search_20250305' : 'web_search_20260209';
+}
 const ACCOUNTS_DIR = path.join(__dirname, 'accounts');
 
-// Toto (public/mon-ia.js) fait le prof dans tout le site (prof, quiz, evaluations, fiches, videos) ;
-// quand il ne sait pas, il demande a Claude. Pour revenir a Claude partout : MON_IA_PARTOUT=non dans .env.
-const MON_IA_PARTOUT = !/^(non|no|0|false)$/i.test(String(process.env.MON_IA_PARTOUT || 'oui').trim());
 // Les regles de Toto (le meme fichier sert au site et au serveur)
 const REGLES_TOTO = require('./public/regles-toto.js');
 
@@ -67,12 +109,12 @@ app.get('/savoir/appris.js', async (req, res) => {
 
 // Le site demande au demarrage qui fait le prof : Claude ou Mon IA
 app.get('/api/config', (req, res) => {
-  res.json({ monIAPartout: MON_IA_PARTOUT });
+  res.json({ monIAPartout: totoEverywhere() });
 });
 
 // Quand Mon IA remplace Claude, on n'appelle plus jamais Claude (le credit ne bouge plus)
 app.use(['/api/chat', '/api/quiz', '/api/fiche'], (req, res, next) => {
-  if (MON_IA_PARTOUT) return res.status(403).json({ error: 'Mon IA remplace Claude sur ce site.' });
+  if (totoEverywhere()) return res.status(403).json({ error: 'Mon IA remplace Claude sur ce site.' });
   next();
 });
 
@@ -105,12 +147,10 @@ async function callClaude(system, messages, maxTokens) {
       'content-type': 'application/json',
       'x-api-key': API_KEY,
       'anthropic-version': '2023-06-01',
+      ...claudeBetaHeaders(),
     },
     body: JSON.stringify({
-      model: MODEL,
-      max_tokens: maxTokens,
-      // Reponses courtes en JSON : pas besoin de reflexion, ca evite aussi qu'elle mange les tokens
-      thinking: { type: 'disabled' },
+      ...claudeRequestOptions(maxTokens),
       system,
       messages,
     }),
@@ -163,13 +203,12 @@ async function callClaudeWeb(system, messages, maxTokens) {
   for (let i = 0; i < 3; i++) {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01' },
+      headers: { 'content-type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', ...claudeBetaHeaders() },
       body: JSON.stringify({
-        model: MODEL,
-        max_tokens: maxTokens,
+        ...claudeWebOptions(maxTokens),
         system,
         messages: convo,
-        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2, allowed_domains: TRUSTED_SITES }],
+        tools: [{ type: webSearchToolType(), name: 'web_search', max_uses: 2, allowed_domains: TRUSTED_SITES }],
       }),
     });
     if (!response.ok) {
@@ -362,8 +401,11 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // Mon IA ne sait pas : Claude repond, sous forme de "notion" que Mon IA garde en memoire.
-// (Autorise meme quand MON_IA_PARTOUT=oui : c'est l'aide de secours de Mon IA.)
+// (Autorise quand Toto fait le prof : c'est son aide de secours. Interdit en mode "Toto seul".)
 app.post('/api/demande-claude', async (req, res) => {
+  if (settings.mode === 'toto') {
+    return res.json({ notion: { mots: [], texte: "Je ne connais pas encore la réponse à ça. Pose-moi une autre question sur tes cours, ou demande à ton professeur à l'école !" }, appris: false });
+  }
   if (!API_KEY) return res.status(500).json({ error: 'Le prof Claude n\'est pas disponible (pas de cle API).' });
   const { question, grade, subject } = req.body;
   if (typeof question !== 'string' || !question.trim()) return res.status(400).json({ error: 'question manquante' });
@@ -554,7 +596,7 @@ async function buildVideoSearchQuery(grade, subject, history, sport) {
   const fallback = sport ? `${subject || ''} regles technique expliquees enfants`.trim() : `${subject || ''} ${grade || ''} cours explication`.trim();
   if (!Array.isArray(history) || history.length === 0) return fallback;
   // Mon IA a la place de Claude : on cherche avec la derniere question de l'eleve, sans appeler Claude
-  if (MON_IA_PARTOUT) {
+  if (totoEverywhere()) {
     const last = [...history].reverse().find((m) => m.role === 'user' && typeof m.content === 'string');
     return last ? `${subject || ''} ${last.content.slice(0, 80)}`.trim() : fallback;
   }
@@ -796,7 +838,7 @@ app.post('/api/admin/accounts', safe(async (req, res) => {
   if (!(await checkAdmin(req, res))) return;
   const accounts = (await listAccounts())
     .filter((a) => a && a.salt)
-    .map((a) => ({ name: a.name, grade: a.grade, age: a.age, stars: a.stars || 0, created: a.created || null, admin: isAdminAccount(a) }))
+    .map((a) => ({ name: a.name, grade: a.grade, age: a.age, stars: a.stars || 0, created: a.created || null, admin: isAdminAccount(a), blocked: Boolean(a.blocked) }))
     .sort((a, b) => (b.created || 0) - (a.created || 0));
   res.json({ accounts });
 }));
@@ -829,6 +871,86 @@ app.post('/api/admin/reset-all', safe(async (req, res) => {
   res.json({ ok: true, count });
 }));
 
+async function deleteStoredAccount(key) {
+  if (USE_SUPABASE) {
+    await supabaseRequest(`?key=eq.${encodeURIComponent(key)}`, { method: 'DELETE' });
+    return;
+  }
+  if (USE_UPSTASH) { await dbCommand(['DEL', `compte:${key}`]); return; }
+  fs.rmSync(accountFilePath(key), { force: true });
+}
+
+// Le compte d'un joueur (jamais un compte admin) pour les actions de l'admin
+async function adminTarget(req, res) {
+  const account = await readAccount(nameKey((req.body || {}).target));
+  if (!account || !account.salt) { res.status(404).json({ error: 'Compte introuvable.' }); return null; }
+  if (isAdminAccount(account)) { res.status(400).json({ error: 'Impossible sur un compte admin.' }); return null; }
+  return account;
+}
+
+// Reglages : quelle IA repond, et quelle version de Claude (sans mode ni modele : on lit juste les reglages)
+app.post('/api/admin/settings', safe(async (req, res) => {
+  if (!(await checkAdmin(req, res))) return;
+  const { mode, model } = req.body || {};
+  if (mode !== undefined || model !== undefined) {
+    if (mode !== undefined && !AI_MODES[mode]) return res.status(400).json({ error: 'Choix inconnu.' });
+    if (model !== undefined && !CLAUDE_MODELS[model]) return res.status(400).json({ error: 'Version inconnue.' });
+    if (mode !== undefined) settings.mode = mode;
+    if (model !== undefined) settings.model = model;
+    await writeAccount({ key: SETTINGS_KEY, mode: settings.mode, model: settings.model });
+  }
+  res.json({ settings, modes: AI_MODES, models: CLAUDE_MODELS });
+}));
+
+// Statistiques (des chiffres seulement : aucun message d'eleve n'est garde ni montre)
+app.post('/api/admin/stats', safe(async (req, res) => {
+  if (!(await checkAdmin(req, res))) return;
+  const accounts = (await listAccounts()).filter((a) => a && a.salt);
+  let answers = 0, videos = 0, questions = 0;
+  const bySubject = {};
+  for (const a of accounts) {
+    for (const [name, s] of Object.entries((a.brain && a.brain.subjects) || {})) {
+      answers += s.n || 0; videos += s.videos || 0; questions += s.questions || 0;
+      bySubject[name] = (bySubject[name] || 0) + (s.n || 0) + (s.videos || 0) + (s.questions || 0);
+    }
+  }
+  res.json({
+    accounts: accounts.length,
+    blocked: accounts.filter((a) => a.blocked).length,
+    answers, videos, questions,
+    topSubjects: Object.entries(bySubject).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, count]) => ({ name, count })),
+    totoLearned: (await readAppris()).length,
+  });
+}));
+
+app.post('/api/admin/give-stars', safe(async (req, res) => {
+  if (!(await checkAdmin(req, res))) return;
+  const amount = Number((req.body || {}).amount);
+  if (!Number.isInteger(amount) || amount < 1 || amount > 100000) return res.status(400).json({ error: 'Choisis un nombre entre 1 et 100 000.' });
+  const account = await adminTarget(req, res);
+  if (!account) return;
+  account.stars = (account.stars || 0) + amount;
+  await writeAccount(account);
+  res.json({ ok: true, stars: account.stars });
+}));
+
+app.post('/api/admin/block', safe(async (req, res) => {
+  if (!(await checkAdmin(req, res))) return;
+  const account = await adminTarget(req, res);
+  if (!account) return;
+  account.blocked = Boolean((req.body || {}).blocked);
+  await writeAccount(account);
+  res.json({ ok: true, blocked: account.blocked });
+}));
+
+app.post('/api/admin/delete', safe(async (req, res) => {
+  if (!(await checkAdmin(req, res))) return;
+  const account = await adminTarget(req, res);
+  if (!account) return;
+  await deleteStoredAccount(account.key);
+  res.json({ ok: true });
+}));
+
 app.post('/api/account/login', safe(async (req, res) => {
   const { name, code } = req.body || {};
   if (tooManyTries(req.ip)) return res.status(429).json({ error: 'errTooMany' });
@@ -837,6 +959,7 @@ app.post('/api/account/login', safe(async (req, res) => {
   }
   const account = await checkLogin(name, code);
   if (!account) return res.status(401).json({ error: 'errLogin' });
+  if (account.blocked) return res.status(403).json({ error: 'errBlocked' });
   res.json({ account: publicAccount(account) });
 }));
 
@@ -845,6 +968,7 @@ app.post('/api/account/stars', safe(async (req, res) => {
   if (!Number.isFinite(stars)) return res.status(400).json({ error: 'Donnees invalides' });
   const account = await checkLogin(name, code);
   if (!account) return res.status(401).json({ error: 'Compte introuvable' });
+  if (account.blocked) return res.status(403).json({ error: 'errBlocked' });
   const newStars = Math.max(0, Math.round(stars));
   const gain = newStars - (account.stars || 0);
   if (gain > 0) {
@@ -881,6 +1005,7 @@ app.post('/api/account/brain', safe(async (req, res) => {
   const { name, code, brain } = req.body || {};
   const account = await checkLogin(name, code);
   if (!account) return res.status(401).json({ error: 'Compte introuvable' });
+  if (account.blocked) return res.status(403).json({ error: 'errBlocked' });
   const clean = cleanBrain(brain);
   if (!clean) return res.status(400).json({ error: 'Donnees invalides' });
   account.brain = clean;
@@ -943,5 +1068,6 @@ app.post('/api/brain/collective', safe(async (req, res) => {
 }));
 
 app.listen(PORT, () => {
+  loadSettings().catch((err) => console.error(err));
   console.log(`Maitresse virtuelle disponible sur http://localhost:${PORT}`);
 });
