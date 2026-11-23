@@ -1615,3 +1615,7 @@ canvas#tableau {
 .account-email-box { margin: 4px 0 16px; padding: 12px; border: 2px dashed #ece7ff; border-radius: 12px; }
 .account-email-box .ville-username-input { text-align: left; margin-bottom: 10px; }
 .account-error.account-ok { color: #1f9d55; }
+
+.account-code-valid { margin: -6px 0 12px; color: #1f9d55; font-weight: 700; font-size: 0.9em; }
+
+.account-parent-hint { margin: -6px 0 14px; font-size: 0.85em; }

@@ -852,12 +852,11 @@ app.post('/api/account/reset', safe(async (req, res) => {
 
 // Ajouter ou changer le mail du parent depuis son compte
 app.post('/api/account/email', safe(async (req, res) => {
-  const { name, code, email, consent } = req.body || {};
+  const { name, code, email } = req.body || {};
   const account = await checkLogin(name, code);
   if (!account) return res.status(401).json({ error: 'errLogin' });
   const clean = cleanEmail(email);
   if (!clean) return res.status(400).json({ error: 'errEmail' });
-  if (consent !== true) return res.status(400).json({ error: 'errConsent' });
   account.email = clean;
   await writeAccount(account);
   res.json({ ok: true });
@@ -873,8 +872,37 @@ function tooManyTries(ip) {
   return list.length > 15;
 }
 
+// Anti-devinette : plus de 10 mauvais codes en 1 minute => on attend 10 minutes.
+// Compte par ordinateur (adresse IP) ET par compte, pour qu'on ne puisse pas essayer depuis plusieurs ordinateurs.
+const FAIL_LIMIT = 10;
+const LOCK_MINUTES = 10;
+const loginFails = new Map(); // cle -> { times: [...], lockedUntil }
+function lockedFor(keys) {
+  const now = Date.now();
+  let wait = 0;
+  for (const k of keys) {
+    const entry = loginFails.get(k);
+    if (entry && entry.lockedUntil > now) wait = Math.max(wait, entry.lockedUntil - now);
+  }
+  return Math.ceil(wait / 60000);
+}
+function recordFail(keys) {
+  const now = Date.now();
+  for (const k of keys) {
+    const entry = loginFails.get(k) || { times: [], lockedUntil: 0 };
+    entry.times = entry.times.filter((t) => now - t < 60000);
+    entry.times.push(now);
+    if (entry.times.length > FAIL_LIMIT) { entry.lockedUntil = now + LOCK_MINUTES * 60000; entry.times = []; }
+    loginFails.set(k, entry);
+  }
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, e] of loginFails) if (e.lockedUntil < now && !e.times.some((t) => now - t < 60000)) loginFails.delete(k);
+}, 300000).unref();
+
 app.post('/api/account/register', safe(async (req, res) => {
-  const { name, code, codeConfirm, age, grade, gender, email, consent } = req.body || {};
+  const { name, code, codeConfirm, age, grade, gender, email } = req.body || {};
   const cleanName = typeof name === 'string' ? name.trim().replace(/\s+/g, ' ') : '';
   if (!/^[\p{L}][\p{L} '-]{1,15}$/u.test(cleanName)) return res.status(400).json({ error: 'errName' });
   if (!isStrongCode(code)) return res.status(400).json({ error: 'errCodeWeak' });
@@ -883,10 +911,9 @@ app.post('/api/account/register', safe(async (req, res) => {
   if (!Number.isInteger(ageNum) || ageNum < 4 || ageNum > 99) return res.status(400).json({ error: 'errAge' });
   if (!GRADES.includes(grade)) return res.status(400).json({ error: 'errGrade' });
   if (!GENDERS.includes(gender)) return res.status(400).json({ error: 'errGender' });
-  // Mail d'un parent : facultatif, mais avec son accord
+  // Mail (le sien ou celui d'un parent) : facultatif
   const parentEmail = email ? cleanEmail(email) : null;
   if (email && !parentEmail) return res.status(400).json({ error: 'errEmail' });
-  if (parentEmail && consent !== true) return res.status(400).json({ error: 'errConsent' });
   const key = nameKey(cleanName);
   if (!key) return res.status(400).json({ error: 'errName' });
   if (await readAccount(key)) return res.status(409).json({ error: 'errNameTaken' });
@@ -1048,12 +1075,17 @@ app.post('/api/admin/delete', safe(async (req, res) => {
 
 app.post('/api/account/login', safe(async (req, res) => {
   const { name, code } = req.body || {};
-  if (tooManyTries(req.ip)) return res.status(429).json({ error: 'errTooMany' });
   if (typeof name !== 'string' || !name.trim() || typeof code !== 'string' || !code) {
     return res.status(400).json({ error: 'errMissing' });
   }
+  const lockKeys = [`ip:${req.ip}`, `compte:${nameKey(name)}`];
+  const wait = lockedFor(lockKeys);
+  if (wait) return res.status(429).json({ error: 'errLocked', minutes: wait });
   const account = await checkLogin(name, code);
-  if (!account) return res.status(401).json({ error: 'errLogin' });
+  if (!account) {
+    recordFail(lockKeys);
+    return res.status(401).json({ error: 'errLogin' });
+  }
   if (account.blocked) return res.status(403).json({ error: 'errBlocked' });
   res.json({ account: publicAccount(account) });
 }));

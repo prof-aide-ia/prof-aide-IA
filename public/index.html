@@ -357,6 +357,7 @@
             <li data-rule="letter" data-i18n="ruleLetter">Au moins une lettre</li>
             <li data-rule="digit" data-i18n="ruleDigit">Au moins un chiffre</li>
           </ul>
+          <p class="account-code-valid" id="regCodeValid" style="display:none" data-i18n="codeValid">🔒 Code sécurisé validé !</p>
           <input type="password" id="regCode2Input" class="ville-username-input" maxlength="40" autocomplete="new-password" data-i18n-placeholder="accountCodeConfirmPlaceholder" placeholder="Retape ton code secret">
           <p class="account-match" id="regCodeMatch"></p>
           <div class="account-row">
@@ -377,7 +378,7 @@
           </div>
           <label class="account-label" for="regEmailInput" data-i18n="regEmailLabel">Ton mail ou celui d'un parent (pas obligatoire, mais c'est mieux : si tu oublies ton code, tu pourras le changer)</label>
           <input type="email" id="regEmailInput" class="ville-username-input" maxlength="200" autocomplete="email" placeholder="parent@exemple.fr">
-          <label class="account-consent"><input type="checkbox" id="regConsentInput"> <span data-i18n="regConsent">Mon parent est d'accord pour donner son mail</span></label>
+          <p class="account-text account-parent-hint" data-i18n="regParentHint">Demande à un parent avant de mettre ton mail.</p>
           <p class="account-error" id="regError" style="display:none"></p>
           <button id="accountRegisterBtn" class="quiz-result-btn" data-i18n="accountRegisterBtn">Créer mon compte</button>
           <button id="accountShowLoginBtn" class="account-link" data-i18n="accountHaveAccount">J'ai déjà un compte</button>
@@ -408,7 +409,7 @@
           <div class="account-email-box">
             <p class="account-text" id="accountEmailStatus"></p>
             <input type="email" id="accountEmailInput" class="ville-username-input" maxlength="200" autocomplete="email" placeholder="parent@exemple.fr">
-            <label class="account-consent"><input type="checkbox" id="accountConsentInput"> <span data-i18n="regConsent">Mon parent est d'accord pour donner son mail</span></label>
+            <p class="account-text account-parent-hint" data-i18n="regParentHint">Demande à un parent avant de mettre ton mail.</p>
             <p class="account-error" id="accountEmailError" style="display:none"></p>
             <button id="accountEmailSaveBtn" class="account-link" data-i18n="accountEmailSave">Enregistrer le mail de mon parent</button>
           </div>
