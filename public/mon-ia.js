@@ -436,8 +436,16 @@
   function savoir() {
     return root.MON_IA_SAVOIR || { notions: [], banks: {}, matieres: {} };
   }
+  // Quand Claude a ameliore une notion, la version amelioree remplace l'ancienne (la plus recente gagne)
+  function notionKey(n) { return stripAccents(String((n.mots || [])[0] || '').toLowerCase()).trim(); }
   function allNotions() {
-    return NOTIONS.concat(savoir().notions || []);
+    const learned = savoir().notions || [];
+    const lastImproved = new Map();
+    learned.forEach((n, i) => { if (n.remplace) lastImproved.set(n.remplace, i); });
+    if (!lastImproved.size) return NOTIONS.concat(learned);
+    const base = NOTIONS.filter((n) => !lastImproved.has(notionKey(n)));
+    const kept = learned.filter((n, i) => (n.remplace ? lastImproved.get(n.remplace) === i : !lastImproved.has(notionKey(n))));
+    return base.concat(kept);
   }
 
   // ---------- Comprendre comment ecrit un enfant ----------
@@ -886,7 +894,7 @@
       if (q) return { reponse: `Bonne question ! ${ex} Maintenant, à toi : ${q.q}`, tableau: notion.tableau || q.board };
       state.offer = enginesFromNames(notion.quiz);
       const propose = state.offer.length ? ' Tu veux que je t\'interroge là-dessus ? Dis « oui » !' : ' Tu as une autre question ?';
-      return { reponse: `${ex}${propose}`, tableau: notion.tableau || null };
+      return { reponse: `${ex}${propose}`, tableau: notion.tableau || null, reviewable: true, notion };
     }
 
     // Pas d'interrogation en cours

@@ -118,7 +118,7 @@ app.use(['/api/chat', '/api/quiz', '/api/fiche'], (req, res, next) => {
   next();
 });
 
-app.use(['/api/chat', '/api/quiz', '/api/fiche', '/api/video-search', '/api/demande-claude'], (req, res, next) => {
+app.use(['/api/chat', '/api/quiz', '/api/fiche', '/api/video-search', '/api/demande-claude', '/api/revue-toto'], (req, res, next) => {
   const now = Date.now();
   if (now - aiDayStart > 86400000) { aiDayStart = now; aiDayCount = 0; }
   if (aiDayCount >= AI_LIMIT_PER_DAY) {
@@ -402,6 +402,60 @@ app.post('/api/chat', async (req, res) => {
 
 // Mon IA ne sait pas : Claude repond, sous forme de "notion" que Mon IA garde en memoire.
 // (Autorise quand Toto fait le prof : c'est son aide de secours. Interdit en mode "Toto seul".)
+// ============ Claude relit les reponses de Toto ============
+// Toto repond tout seul ; Claude verifie sa reponse. Si elle peut etre meilleure, l'eleve recoit la version
+// amelioree et Toto la garde a la place de l'ancienne. Claude lui laisse aussi un conseil.
+const CONSEILS_KEY = '_conseils_toto';
+app.post('/api/revue-toto', async (req, res) => {
+  if (settings.mode === 'toto' || !API_KEY) return res.json({ skip: true });
+  const { question, reponse, notion, grade, subject } = req.body || {};
+  if (typeof question !== 'string' || typeof reponse !== 'string' || !notion || !Array.isArray(notion.mots) || !notion.mots.length) {
+    return res.json({ skip: true });
+  }
+  const q = question.trim().slice(0, 300);
+  if (!q || REGLES_TOTO.verifier(q)) return res.json({ skip: true });
+  const system = `Tu es un professeur expérimenté qui relit les réponses de "Toto", la petite IA de prof d'un site d'aide aux devoirs pour enfants. Un élève${grade ? ` de ${grade}` : ''} (matière : ${subject || 'non précisée'}) a posé une question et Toto a répondu.
+Vérifie que la réponse de Toto est juste, qu'elle répond vraiment à la question de l'élève, et qu'elle est adaptée à son âge.
+Règles : tutoiement, phrases courtes, un exemple de la vie de tous les jours (pas toujours la pizza). Si la question est un exercice précis, ne donne jamais le résultat final : explique seulement la méthode.
+Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour :
+- si la réponse de Toto est déjà bonne : {"bonne": true, "conseil": "en une phrase, ce que Toto aurait pu ajouter ou mieux faire"}
+- sinon : {"bonne": false, "meme_sujet": true si Toto parlait bien du sujet de la question mais s'est trompé ou a mal expliqué / false s'il a répondu à côté (sur un autre sujet), "mots": ["3 à 6 mots-clés en minuscules sans accents qui décrivent le sujet de la QUESTION"], "conseil": "en une phrase, ce que Toto aurait dû faire", "texte": "la bonne explication de ce que l'élève a demandé, en 1 à 3 phrases", "exemple": "un exemple concret de la vie de tous les jours", "astuce": "une astuce pour retenir", "tableau": "résumé de 60 caractères maximum"}`;
+  try {
+    const raw = await callClaude(system, [{ role: 'user', content: `Question de l'élève : ${q}\n\nRéponse de Toto : ${reponse.slice(0, 1200)}` }], 600);
+    const r = JSON.parse(raw.match(/\{[\s\S]*\}/)[0]);
+    const clean = (s, max) => (typeof s === 'string' && s.trim() ? s.trim().slice(0, max) : undefined);
+    const today = new Date().toISOString().slice(0, 10);
+    const conseil = clean(r.conseil, 300);
+    if (conseil) {
+      const saved = (await readAccount(CONSEILS_KEY)) || {};
+      const list = [...(Array.isArray(saved.list) ? saved.list : []), { date: today, question: q, conseil }].slice(-200);
+      await writeAccount({ key: CONSEILS_KEY, list });
+    }
+    if (r.bonne !== false || !clean(r.texte, 600)) return res.json({ bonne: true, conseil });
+    // Toto a repondu a cote : on ne touche pas a sa notion, on en cree une nouvelle avec les mots de la question
+    const sameTopic = r.meme_sujet !== false;
+    const ownWords = (Array.isArray(r.mots) ? r.mots : []).map(stripAcc).filter((m) => m.length >= 3 && m.length <= 40 && !GENERIC_WORDS.has(m)).slice(0, 6);
+    if (!sameTopic && !ownWords.length) return res.json({ bonne: true, conseil });
+    const improved = {
+      mots: sameTopic ? notion.mots.map(stripAcc).filter((m) => m.length >= 2 && m.length <= 40).slice(0, 8) : ownWords,
+      titre: sameTopic ? clean(notion.titre, 60) : undefined, texte: clean(r.texte, 600), exemple: clean(r.exemple, 400),
+      astuce: clean(r.astuce, 300), tableau: clean(r.tableau, 70),
+      quiz: sameTopic && Array.isArray(notion.quiz) ? notion.quiz.filter((x) => typeof x === 'string').slice(0, 6) : [],
+      remplace: sameTopic ? stripAcc(notion.mots[0]).slice(0, 40) : undefined, appris: today, question: q, sujet: clean(subject, 60),
+    };
+    if (!improved.mots.length || REGLES_TOTO.reponseInterdite([improved.texte, improved.exemple, improved.astuce, improved.tableau].join(' '))) {
+      return res.json({ bonne: true, conseil });
+    }
+    const list = (await readAppris()).filter((x) => !improved.remplace || x.remplace !== improved.remplace);
+    list.push(improved);
+    await writeAppris(list);
+    res.json({ bonne: false, conseil, notion: improved });
+  } catch (err) {
+    console.error('Erreur revue de Toto:', err);
+    res.json({ skip: true });
+  }
+});
+
 app.post('/api/demande-claude', async (req, res) => {
   if (settings.mode === 'toto') {
     return res.json({ notion: { mots: [], texte: "Je ne connais pas encore la réponse à ça. Pose-moi une autre question sur tes cours, ou demande à ton professeur à l'école !" }, appris: false });
@@ -1042,6 +1096,7 @@ app.post('/api/admin/stats', safe(async (req, res) => {
     answers, videos, questions,
     topSubjects: Object.entries(bySubject).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, count]) => ({ name, count })),
     totoLearned: (await readAppris()).length,
+    conseils: (((await readAccount(CONSEILS_KEY)) || {}).list || []).slice(-3).reverse(),
   });
 }));
 
