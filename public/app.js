@@ -2161,7 +2161,7 @@ async function askClaudeForMonIA(question, again) {
     if (data.appris) MonIA.learn(n);
     const texte = n.mots && n.mots.length ? MonIA.explainLearned(n) : n.texte;
     const merci = data.appris ? ' (Maintenant je le sais !)' : '';
-    // La source (un site fiable) est affichee mais pas lue a voix haute
+    // La source n'est pas affichee aux eleves
     let site = '';
     try { if (n.source) site = ` 📚 Source : ${new URL(n.source).hostname.replace(/^www\./, '')}`; } catch (e) { /* pas de source */ }
     if ('speechSynthesis' in window) speechSynthesis.cancel();
