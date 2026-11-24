@@ -2163,7 +2163,6 @@ async function askClaudeForMonIA(question, again) {
     const merci = data.appris ? ' (Maintenant je le sais !)' : '';
     // La source n'est pas affichee aux eleves
     let site = '';
-    try { if (n.source) site = ` 📚 Source : ${new URL(n.source).hostname.replace(/^www\./, '')}`; } catch (e) { /* pas de source */ }
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     bubbleText.textContent = `🎓 ${texte}${merci}${site}`;
     writeOnBoard(n.tableau || null);
