@@ -723,6 +723,18 @@
     return { subject: null, current: null, tries: 0, asked: 0, good: 0, streak: 0, misses: 0, bonus: 0, last: null, offer: null, engines: null, greeted: false };
   }
 
+  // Une autre explication, plus simple et avec un autre exemple, demandee au prof Claude
+  function explainAgain(state) {
+    const n = state.lastNotion;
+    const sujet = n.titre || (n.mots && n.mots[0]) || 'cette notion';
+    return {
+      reponse: "D'accord, je vais te l'expliquer autrement, une petite seconde...",
+      tableau: null,
+      askClaude: `Je n'ai pas compris ton explication sur « ${sujet} ». Explique-la-moi autrement, plus simplement, avec un autre exemple de la vie de tous les jours. L'explication que je n'ai pas comprise : ${n.texte || ''}`,
+      again: true,
+    };
+  }
+
   function levelFor(state, ctx) {
     let base = 1;
     if (ctx.brain && ctx.MiniIA) {
@@ -814,6 +826,9 @@
     }
 
     const q = state.current;
+    // L'eleve n'a pas compris l'explication d'avant : on l'explique AUTREMENT (pas la meme phrase)
+    const notUnderstood = /^(je (ne )?comprends? (pas|rien)|j'ai (pas|rien) compris|pas compris|toujours pas|je vois pas|explique (encore|autrement|mieux|plus simplement)|reexplique|re-explique|encore)\b/.test(low);
+    if (notUnderstood && !q && state.lastNotion) return explainAgain(state);
     const isQuestion = /\?\s*$/.test(raw) || /^(c'est quoi|qu'est-ce|comment|pourquoi|explique|ca veut dire|que veut dire|je comprends pas|j'ai pas compris|je comprend pas|c'est comment|a quoi sert|quand|qui (est|etait)|ou (est|se trouve)|quel)/.test(low) || /\b(ca marche|explique|c'est quoi)\b/.test(low);
 
     // Un calcul demande : "combien font 7 fois 8 ?" -> on aide a le trouver, sans donner la reponse
@@ -850,6 +865,8 @@
     // Dernier essai : chercher la notion avec les mots de son explication
     if (!notion && !isFactual && (isQuestion || !q)) notion = findNotionByText(raw);
     if (notion) {
+      if (!q && state.lastNotion === notion) return explainAgain(state);
+      state.lastNotion = notion;
       const ex = explain(notion);
       if (q) return { reponse: `Bonne question ! ${ex} Maintenant, à toi : ${q.q}`, tableau: notion.tableau || q.board };
       state.offer = enginesFromNames(notion.quiz);
@@ -883,7 +900,7 @@
       }
       // Je ne sais pas : je demande au prof Claude, et j'apprends sa reponse pour la prochaine fois
       return {
-        reponse: 'Hmm, ça je ne le sais pas encore... Je cherche la réponse, et je la retiens pour la prochaine fois !',
+        reponse: 'Bonne question ! Je cherche la réponse, une petite seconde...',
         tableau: null,
         askClaude: raw,
       };

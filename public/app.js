@@ -2140,20 +2140,20 @@ async function askMonIA(eleveText) {
   if (r.stop) setMonIA(false);
   if (r.askClaude) {
     speak(r.reponse);
-    return askClaudeForMonIA(r.askClaude);
+    return askClaudeForMonIA(r.askClaude, r.again);
   }
   await speak(r.reponse);
   setStatus(null, t('statusWaiting'));
 }
 
 // Mon IA ne sait pas : elle demande au prof Claude, montre sa reponse et l'apprend pour la prochaine fois
-async function askClaudeForMonIA(question) {
+async function askClaudeForMonIA(question, again) {
   setStatus('thinking', t('statusThinking'));
   try {
     const res = await fetch('/api/demande-claude', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ question, grade, subject: subject.label }),
+      body: JSON.stringify({ question, grade, subject: subject.label, again: Boolean(again) }),
     });
     const data = await res.json();
     if (data.error || !data.notion) throw new Error(data.error || 'pas de reponse');

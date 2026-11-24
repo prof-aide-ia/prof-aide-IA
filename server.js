@@ -407,7 +407,7 @@ app.post('/api/demande-claude', async (req, res) => {
     return res.json({ notion: { mots: [], texte: "Je ne connais pas encore la réponse à ça. Pose-moi une autre question sur tes cours, ou demande à ton professeur à l'école !" }, appris: false });
   }
   if (!API_KEY) return res.status(500).json({ error: 'Le prof Claude n\'est pas disponible (pas de cle API).' });
-  const { question, grade, subject } = req.body;
+  const { question, grade, subject, again } = req.body;
   if (typeof question !== 'string' || !question.trim()) return res.status(400).json({ error: 'question manquante' });
   const q = question.trim().slice(0, 300);
   // Les regles de Toto s'appliquent aussi ici : une question interdite n'est jamais envoyee a Claude
@@ -456,7 +456,7 @@ Si la question n'a rien a voir avec l'ecole ou n'est pas correcte, reponds {"hor
     if (interdit) return res.json({ notion: { mots: [], texte: 'Je préfère ne pas répondre à ça. Pose-moi une autre question sur tes cours !' }, appris: false });
     // On garde la notion (sans doublon) pour que Toto s'en souvienne
     let appris = false;
-    if (mots.length) {
+    if (mots.length && !again) {
       const list = [...(await readAppris())];
       if (!list.some((x) => x.mots && x.mots[0] === mots[0])) {
         list.push(notion);
