@@ -723,14 +723,23 @@
     return { subject: null, current: null, tries: 0, asked: 0, good: 0, streak: 0, misses: 0, bonus: 0, last: null, offer: null, engines: null, greeted: false };
   }
 
-  // Une autre explication, plus simple et avec un autre exemple, demandee au prof Claude
-  function explainAgain(state) {
-    const n = state.lastNotion;
+  // Avant de reexpliquer, on demande a l'eleve ce qui le bloque (comme un vrai prof)
+  function askWhatBlocks(state, notion) {
+    state.waitingDetail = notion;
+    const sujet = notion.titre || (notion.mots && notion.mots[0]) || 'ça';
+    return {
+      reponse: `D'accord, on va y arriver ! Dis-moi ce que tu n'arrives pas à faire exactement avec « ${sujet} ». Par exemple : un mot que tu ne comprends pas, une étape, ou un exercice précis que tu dois faire.`,
+      tableau: 'Qu\'est-ce qui te bloque ?',
+    };
+  }
+
+  // Une autre explication, qui part de ce que l'eleve a dit, demandee au prof Claude
+  function explainAgain(n, detail) {
     const sujet = n.titre || (n.mots && n.mots[0]) || 'cette notion';
     return {
-      reponse: "D'accord, je vais te l'expliquer autrement, une petite seconde...",
+      reponse: "Merci, je comprends mieux ! Je t'explique autrement, une petite seconde...",
       tableau: null,
-      askClaude: `Je n'ai pas compris ton explication sur « ${sujet} ». Explique-la-moi autrement, plus simplement, avec un autre exemple de la vie de tous les jours. L'explication que je n'ai pas comprise : ${n.texte || ''}`,
+      askClaude: `Je travaille sur « ${sujet} » et je n'ai pas compris cette explication : ${n.texte || ''} Voici ce qui me bloque : « ${String(detail || '').slice(0, 200)} ». Explique-moi autrement, plus simplement, en partant de ce qui me bloque, avec un exemple de la vie de tous les jours.`,
       again: true,
     };
   }
@@ -827,8 +836,14 @@
 
     const q = state.current;
     // L'eleve n'a pas compris l'explication d'avant : on l'explique AUTREMENT (pas la meme phrase)
-    const notUnderstood = /^(je (ne )?comprends? (pas|rien)|j'ai (pas|rien) compris|pas compris|toujours pas|je vois pas|explique (encore|autrement|mieux|plus simplement)|reexplique|re-explique|encore)\b/.test(low);
-    if (notUnderstood && !q && state.lastNotion) return explainAgain(state);
+    // L'eleve vient de dire ce qui le bloque : on lui explique en partant de ce qu'il a dit
+    if (state.waitingDetail && !q) {
+      const n = state.waitingDetail;
+      state.waitingDetail = null;
+      return explainAgain(n, raw);
+    }
+    const notUnderstood = /^(je (ne )?comprends? (pas|rien)|j'ai (pas|rien) compris|pas compris|toujours pas|je vois pas|je n'y arrive pas|j'y arrive pas|j'arrive pas|explique (encore|autrement|mieux|plus simplement)|reexplique|re-explique|encore)\b/.test(low);
+    if (notUnderstood && !q && state.lastNotion) return askWhatBlocks(state, state.lastNotion);
     const isQuestion = /\?\s*$/.test(raw) || /^(c'est quoi|qu'est-ce|comment|pourquoi|explique|ca veut dire|que veut dire|je comprends pas|j'ai pas compris|je comprend pas|c'est comment|a quoi sert|quand|qui (est|etait)|ou (est|se trouve)|quel)/.test(low) || /\b(ca marche|explique|c'est quoi)\b/.test(low);
 
     // Un calcul demande : "combien font 7 fois 8 ?" -> on aide a le trouver, sans donner la reponse
@@ -865,7 +880,7 @@
     // Dernier essai : chercher la notion avec les mots de son explication
     if (!notion && !isFactual && (isQuestion || !q)) notion = findNotionByText(raw);
     if (notion) {
-      if (!q && state.lastNotion === notion) return explainAgain(state);
+      if (!q && state.lastNotion === notion) return askWhatBlocks(state, notion);
       state.lastNotion = notion;
       const ex = explain(notion);
       if (q) return { reponse: `Bonne question ! ${ex} Maintenant, à toi : ${q.q}`, tableau: notion.tableau || q.board };
@@ -882,6 +897,12 @@
         return startQuiz(state, ctx, 'C\'est parti ! Première question :');
       }
       if (/interroge|pose[- ]moi|questionne|quiz|teste[- ]moi|entraine|exercice|on commence|commence|go\b|oui/.test(low)) {
+        // On interroge sur ce qu'il vient de travailler (la derniere notion), sinon sur toute la matiere
+        const focus = state.lastNotion ? enginesFromNames(state.lastNotion.quiz) : [];
+        if (focus.length) {
+          state.engines = focus;
+          return startQuiz(state, ctx, `C'est parti, je t'interroge sur « ${state.lastNotion.titre || ctx.subject} » ! Si tu bloques, dis « indice ». Première question :`);
+        }
         state.engines = null;
         const { known } = enginesFor(ctx.subject);
         return startQuiz(state, ctx, known
@@ -984,8 +1005,9 @@
   }
 
   // Plusieurs questions differentes pour une matiere
-  function collect(subject, level, count, grade) {
-    const { engines } = enginesFor(subject, grade);
+  function collect(subject, level, count, grade, focus) {
+    const focused = forGrade(enginesFromNames(focus), grade);
+    const engines = focused.length ? focused : enginesFor(subject, grade).engines;
     const seen = new Set();
     const list = [];
     for (let i = 0; i < count * 30 && list.length < count; i++) {
@@ -1013,11 +1035,12 @@
   }
 
   // mode : 'qcm' (10 questions), 'ecrit' (5), 'evaluation' (8, melange) ; difficulty : facile | normal | difficile
-  function makeQuiz(subject, mode, difficulty, grade) {
+  // focus : les generateurs de la notion travaillee en ce moment (les questions portent dessus)
+  function makeQuiz(subject, mode, difficulty, grade, focus) {
     const level = { facile: 0, normal: 1, difficile: 2 }[difficulty] ?? 1;
-    if (mode === 'ecrit') return { questions: collect(subject, level, 5, grade).map(toEcrit) };
+    if (mode === 'ecrit') return { questions: collect(subject, level, 5, grade, focus).map(toEcrit) };
     if (mode === 'evaluation') {
-      const items = collect(subject, level, 8, grade);
+      const items = collect(subject, level, 8, grade, focus);
       const half = Math.ceil(items.length / 2);
       const questions = [
         ...items.slice(0, half).map((it) => ({ type: 'qcm', exercice: 'Exercice 1 : Questions à choix', consigne: 'Entoure la bonne réponse.', ...toQcm(it, level) })),
@@ -1025,7 +1048,7 @@
       ];
       return { titre: `Évaluation : ${subject}`, questions };
     }
-    return { questions: collect(subject, level, 10, grade).map((it) => toQcm(it, level)) };
+    return { questions: collect(subject, level, 10, grade, focus).map((it) => toQcm(it, level)) };
   }
 
   // Titre d'une notion avec les accents : on retrouve le mot-cle dans le texte ("Numérateur" et pas "Numerateur")

@@ -2732,7 +2732,7 @@ async function loadQuiz() {
   try {
     // Mon IA a la place de Claude : elle fabrique le quiz elle-meme, sans serveur
     const data = monIAPartout
-      ? MonIA.makeQuiz(subject.label, quizMode, quizDifficulty, grade)
+      ? MonIA.makeQuiz(subject.label, quizMode, quizDifficulty, grade, monIAState.lastNotion ? monIAState.lastNotion.quiz : null)
       : await (await fetch('/api/quiz', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
